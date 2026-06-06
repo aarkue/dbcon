@@ -2,7 +2,7 @@
 
 Universal Rust connector for tabular data sources.
 
-`dbcon` offers a single async API over SQLite, PostgreSQL, and CSV files. It provides:
+`dbcon` offers a single async API over SQLite, PostgreSQL, CSV, and Parquet files. It provides:
 
 - Automatic schema discovery (tables, columns, primary and foreign keys)
 - Row iteration with eager (`get_all_records`) and streaming (`for_each_record`) modes
@@ -17,6 +17,15 @@ Universal Rust connector for tabular data sources.
 | PostgreSQL | Yes              | Yes          |
 | SQLite     | Yes              | Yes          |
 | CSV        | Headers only     | Yes          |
+| Parquet    | Yes              | Yes          |
+
+Parquet support is gated behind the `parquet` Cargo feature, which is on by
+default. To build without it (skipping the `parquet`/`arrow-*` dependency
+tree), disable default features:
+
+```toml
+dbcon = { version = "0.2", default-features = false }
+```
 
 Connection strings:
 
@@ -26,6 +35,8 @@ postgresql://user:password@host/db
 sqlite:path/to/file.db
 csv://path/to/file.csv
 path/to/file.csv              # Bare .csv path is also accepted
+parquet://path/to/file.parquet
+path/to/file.parquet          # Bare .parquet path is also accepted
 ```
 
 ## Usage
@@ -64,13 +75,14 @@ use `DataSource::new_any_without_discovery`.
 
 ## Running the tests
 
-The tests require a running PostgreSQL instance, an SQLite database, and a CSV file.
-Paths/URLs are read from a `.env` file (see `.env.example`):
+The tests require a running PostgreSQL instance, an SQLite database, a CSV file,
+and a Parquet file. Paths/URLs are read from a `.env` file (see `.env.example`):
 
 ```text
 POSTGRES_URL=postgres://user:password@localhost/dbname
 SQLITE_PATH=sqlite:path/to/database.sqlite
 CSV_PATH=path/to/file.csv
+PARQUET_PATH=path/to/file.parquet
 ```
 
 Then run `cargo test`.

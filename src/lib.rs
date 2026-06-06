@@ -2,10 +2,11 @@
 //!
 //! A small universal connector for tabular data sources.
 //!
-//! dbcon offers a uniform API over SQLite, PostgreSQL, and CSV files: schema discovery
-//! (tables, columns, primary and foreign keys), row iteration, streaming, and distinct-
-//! value queries. Values are exposed via a normalised [`NormalizedValue`] enum so callers
-//! can handle data from any backend without knowing the source-specific type system.
+//! dbcon offers a uniform API over SQLite, PostgreSQL, CSV, and Parquet files: schema
+//! discovery (tables, columns, primary and foreign keys), row iteration, streaming, and
+//! distinct-value queries. Values are exposed via a normalised [`NormalizedValue`] enum
+//! so callers can handle data from any backend without knowing the source-specific type
+//! system.
 //!
 //! ## Quick start
 //!
@@ -265,7 +266,7 @@ impl NormalizedType {
 
             _ => {
                 // Fallback: a few common variants carry a distinguishing prefix/suffix.
-                // Order matters — check the most specific categories first.
+                // Order matters: check the most specific categories first.
                 if base.starts_with("timestamp") || base.starts_with("datetime") {
                     Self::Timestamp
                 } else if base.ends_with("char") || base.ends_with("text") {
@@ -348,13 +349,157 @@ mod test {
         }
         Ok(())
     }
+
+    #[cfg(feature = "parquet")]
+    #[tokio::test]
+    async fn test_parquet() -> anyhow::Result<()> {
+        dotenvy::dotenv().ok();
+        let path = std::env::var("PARQUET_PATH")
+            .expect("PARQUET_PATH must be set (see .env.example)");
+        let ds = DataSource::new_parquet("Parquet Test".to_string(), path).await?;
+
+        println!("Parquet:");
+        println!("{:?}", ds.tables.values().next().unwrap());
+        for row in ds
+            .get_first_rows(ds.get_all_tables().next().unwrap(), 5)
+            .await?
+        {
+            println!("\t{:?}", row);
+        }
+        Ok(())
+    }
+
+    /// Roundtrip: write a tiny Parquet file with known schema + rows, then read
+    /// it back through DataSource and check types/values survive the trip.
+    #[cfg(feature = "parquet")]
+    #[tokio::test]
+    async fn parquet_roundtrip_reads_typed_values() -> anyhow::Result<()> {
+        use parquet::data_type::{ByteArray, ByteArrayType, Int64Type};
+        use parquet::file::properties::WriterProperties;
+        use parquet::file::writer::SerializedFileWriter;
+        use parquet::schema::parser::parse_message_type;
+        use std::sync::Arc;
+
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!(
+            "dbcon_roundtrip_{}.parquet",
+            std::process::id()
+        ));
+        let path_str = path.to_string_lossy().to_string();
+
+        let schema = Arc::new(parse_message_type(
+            "message schema {
+                REQUIRED INT64 id;
+                REQUIRED BYTE_ARRAY name (UTF8);
+            }",
+        )?);
+        let props = Arc::new(WriterProperties::default());
+        {
+            let file = std::fs::File::create(&path)?;
+            let mut writer = SerializedFileWriter::new(file, schema, props)?;
+            let mut rg = writer.next_row_group()?;
+
+            let mut c0 = rg.next_column()?.unwrap();
+            c0.typed::<Int64Type>().write_batch(&[1, 2, 3], None, None)?;
+            c0.close()?;
+
+            let mut c1 = rg.next_column()?.unwrap();
+            let names: Vec<ByteArray> = ["alice", "bob", "carol"]
+                .iter()
+                .map(|s| ByteArray::from(*s))
+                .collect();
+            c1.typed::<ByteArrayType>().write_batch(&names, None, None)?;
+            c1.close()?;
+
+            rg.close()?;
+            writer.close()?;
+        }
+
+        let ds = crate::DataSource::new_parquet("rt".into(), path_str.clone()).await?;
+
+        let table = ds.tables.get("main").expect("main table present");
+        let id_col = table.columns.get("id").expect("id col");
+        let name_col = table.columns.get("name").expect("name col");
+        assert_eq!(id_col.col_type, crate::NormalizedType::Integer);
+        assert_eq!(name_col.col_type, crate::NormalizedType::Text);
+
+        let rows = ds
+            .get_all_records("main", &["id", "name"], false)
+            .await?;
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0][0], crate::NormalizedValue::Integer(1));
+        assert_eq!(
+            rows[2][1],
+            crate::NormalizedValue::Text("carol".to_string())
+        );
+
+        let distinct = ds.get_distinct_values("main", "name").await?;
+        let mut sorted = distinct.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["alice", "bob", "carol"]);
+
+        let _ = std::fs::remove_file(&path);
+        Ok(())
+    }
+
+    #[cfg(feature = "parquet")]
+    #[tokio::test]
+    async fn parquet_dispatch_recognises_suffix_and_scheme() -> anyhow::Result<()> {
+        use crate::{DataSourceInner, DataSource};
+        // new_any_without_discovery only constructs the source, it does not open the file.
+        let ds = DataSource::new_any_without_discovery(
+            "x".into(),
+            "some/path.parquet".into(),
+        )
+        .await?;
+        assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
+
+        let ds = DataSource::new_any_without_discovery(
+            "x".into(),
+            "parquet:///tmp/y.parquet".into(),
+        )
+        .await?;
+        assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn delimiter_spec_parses_known_aliases() {
+        use crate::parse_delimiter_spec;
+        assert_eq!(parse_delimiter_spec(";"), Some(b';'));
+        assert_eq!(parse_delimiter_spec("\\t"), Some(b'\t'));
+        assert_eq!(parse_delimiter_spec("tab"), Some(b'\t'));
+        assert_eq!(parse_delimiter_spec("pipe"), Some(b'|'));
+        assert_eq!(parse_delimiter_spec("semicolon"), Some(b';'));
+        assert_eq!(parse_delimiter_spec(""), None);
+        assert_eq!(parse_delimiter_spec("two_chars"), None);
+    }
+
+    #[test]
+    fn csv_spec_url_encoded_delimiter_is_honoured() {
+        // Frontend encodes `;` as `%3B` via encodeURIComponent; backend must decode.
+        let src = crate::CSVSource::from_csv_spec("/nonexistent.csv?delimiter=%3B");
+        assert_eq!(src.delimiter, b';');
+        let src = crate::CSVSource::from_csv_spec("/nonexistent.csv?delimiter=tab");
+        assert_eq!(src.delimiter, b'\t');
+    }
 }
 
+#[cfg(feature = "parquet")]
+use parquet::basic::{ConvertedType, LogicalType, TimeUnit, Type as PhysicalType};
+#[cfg(feature = "parquet")]
+use parquet::file::reader::{FileReader, SerializedFileReader};
+#[cfg(feature = "parquet")]
+use parquet::record::Field;
+#[cfg(feature = "parquet")]
+use parquet::schema::types::Type as ParquetType;
 use sea_schema::postgres::discovery::SchemaDiscovery as PgDiscoverer;
 use sea_schema::sqlite::discovery::SchemaDiscovery as SqliteDiscoverer;
 use sqlx::types::chrono::{self, FixedOffset, NaiveDateTime};
 use std::collections::HashMap;
 use std::fmt::Display;
+#[cfg(feature = "parquet")]
+use std::fs::File;
 // use sea_schema::mysql::discoverer::SchemaDiscoverer as MySqlDiscoverer;
 use sqlx::{Column, PgPool, SqlitePool, TypeInfo};
 
@@ -415,11 +560,16 @@ impl DataSource {
         .await
     }
 
+    #[cfg(feature = "parquet")]
+    pub async fn new_parquet(name: String, path: String) -> anyhow::Result<Self> {
+        Self::new(name, ParquetSource { path }).await
+    }
+
     pub async fn new_any(name: String, connection_string: String) -> anyhow::Result<Self> {
         Self::new(name, Self::inner_from_connection_string(&connection_string).await?).await
     }
 
-    /// Connect without schema discovery — only establishes the connection for querying.
+    /// Connect without schema discovery; only establishes the connection for querying.
     /// Much faster than `new_any` for databases with many tables.
     pub async fn new_any_without_discovery(
         name: String,
@@ -434,20 +584,44 @@ impl DataSource {
         if connection_string.starts_with("postgres://")
             || connection_string.starts_with("postgresql://")
         {
-            Ok(PgPool::connect(connection_string).await?.into())
-        } else if connection_string.starts_with("sqlite:") {
-            Ok(SqlitePool::connect(connection_string).await?.into())
-        } else if let Some(rest) = connection_string.strip_prefix("csv://") {
-            Ok(CSVSource::from_csv_spec(rest).into())
-        } else if connection_string.ends_with(".csv") {
-            Ok(CSVSource::from_path_autodetect(connection_string.to_string()).into())
-        } else {
-            anyhow::bail!(
-                "Unsupported data source. Expected a connection string starting with \
-                 `postgres://`, `postgresql://`, `sqlite:`, or `csv://`, or a path ending \
-                 in `.csv`."
-            )
+            return Ok(PgPool::connect(connection_string).await?.into());
         }
+        if connection_string.starts_with("sqlite:") {
+            return Ok(SqlitePool::connect(connection_string).await?.into());
+        }
+        if let Some(rest) = connection_string.strip_prefix("csv://") {
+            return Ok(CSVSource::from_csv_spec(rest).into());
+        }
+        #[cfg(feature = "parquet")]
+        if let Some(rest) = connection_string.strip_prefix("parquet://") {
+            return Ok(ParquetSource {
+                path: rest.to_string(),
+            }
+            .into());
+        }
+        if connection_string.ends_with(".csv") {
+            return Ok(CSVSource::from_path_autodetect(connection_string.to_string()).into());
+        }
+        #[cfg(feature = "parquet")]
+        if connection_string.ends_with(".parquet") {
+            return Ok(ParquetSource {
+                path: connection_string.to_string(),
+            }
+            .into());
+        }
+        #[cfg(feature = "parquet")]
+        anyhow::bail!(
+            "Unsupported data source. Expected a connection string starting with \
+             `postgres://`, `postgresql://`, `sqlite:`, `csv://`, or `parquet://`, \
+             or a path ending in `.csv` or `.parquet`."
+        );
+        #[cfg(not(feature = "parquet"))]
+        anyhow::bail!(
+            "Unsupported data source. Expected a connection string starting with \
+             `postgres://`, `postgresql://`, `sqlite:`, or `csv://`, or a path \
+             ending in `.csv`. (Rebuild with the `parquet` feature to enable \
+             Parquet file support.)"
+        );
     }
 
     pub async fn get_first_rows_of_all_tables(
@@ -504,6 +678,17 @@ impl DataSource {
             .await
     }
 
+    /// Run an arbitrary SQL query against the underlying SQL pool, streaming each row to
+    /// `handler` as a `Vec<(column_name, NormalizedValue)>`. Errors out if this `DataSource`
+    /// is backed by CSV or Parquet, which do not accept arbitrary SQL.
+    pub async fn for_each_row_sql(
+        &self,
+        sql: &str,
+        handler: impl FnMut(Vec<(String, NormalizedValue)>),
+    ) -> anyhow::Result<()> {
+        self.inner.for_each_row_sql(sql, handler).await
+    }
+
     /// Run SELECT DISTINCT on a single column. Useful for discovering attribute names.
     pub async fn get_distinct_values(
         &self,
@@ -551,6 +736,8 @@ pub struct DataColumnInfo {
 pub enum DataSourceInner {
     SQL(SQLPool),
     CSV(CSVSource),
+    #[cfg(feature = "parquet")]
+    Parquet(ParquetSource),
 }
 impl<T> From<T> for DataSourceInner
 where
@@ -564,6 +751,12 @@ where
 impl From<CSVSource> for DataSourceInner {
     fn from(csv: CSVSource) -> Self {
         Self::CSV(csv)
+    }
+}
+#[cfg(feature = "parquet")]
+impl From<ParquetSource> for DataSourceInner {
+    fn from(parquet: ParquetSource) -> Self {
+        Self::Parquet(parquet)
     }
 }
 
@@ -657,7 +850,24 @@ where
                 NormalizedValue::Null
             }
         }
-        _ => row.try_get::<Option<String>, _>(i)?.into(),
+        _ => {
+            // Dynamic column type with no static SQL type (e.g. CASE WHEN expressions).
+            // Try bool first since `CASE WHEN ... THEN TRUE ELSE FALSE END` is common,
+            // then integer, float, string; first successful decode wins.
+            if let Ok(b) = row.try_get::<Option<bool>, _>(i) {
+                b.into()
+            } else if let Ok(n) = row.try_get::<Option<i64>, _>(i) {
+                n.into()
+            } else if let Ok(n) = row.try_get::<Option<i32>, _>(i) {
+                n.into()
+            } else if let Ok(n) = row.try_get::<Option<f64>, _>(i) {
+                n.into()
+            } else if let Ok(s) = row.try_get::<Option<String>, _>(i) {
+                s.into()
+            } else {
+                NormalizedValue::Null
+            }
+        }
     };
     Ok(res)
 }
@@ -714,6 +924,8 @@ impl DataSourceInner {
         match self {
             DataSourceInner::SQL(sql) => sql.get_tables().await,
             DataSourceInner::CSV(csv) => csv.get_tables().await,
+            #[cfg(feature = "parquet")]
+            DataSourceInner::Parquet(p) => p.get_tables().await,
         }
     }
 
@@ -775,6 +987,51 @@ impl DataSourceInner {
                 }
                 Ok(result)
             }
+            #[cfg(feature = "parquet")]
+            DataSourceInner::Parquet(p) => {
+                // `unique` is ignored: Parquet has no native DISTINCT, same as CSV.
+                let _ = unique;
+                let reader = p.open()?;
+                let schema = reader.metadata().file_metadata().schema();
+                let field_names: Vec<&str> =
+                    schema.get_fields().iter().map(|f| f.name()).collect();
+                let ts_units: Vec<Option<TimeUnit>> = schema
+                    .get_fields()
+                    .iter()
+                    .map(|f| parquet_timestamp_unit(f))
+                    .collect();
+                let indices: Vec<usize> = columns
+                    .iter()
+                    .map(|col| {
+                        field_names.iter().position(|h| h == col).ok_or_else(|| {
+                            anyhow::anyhow!("Column '{}' not found in Parquet", col)
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut result: Vec<Vec<NormalizedValue>> = Vec::new();
+                for row in reader.get_row_iter(None)? {
+                    let row = row?;
+                    let fields: Vec<&Field> =
+                        row.get_column_iter().map(|(_, f)| f).collect();
+                    let values: Vec<NormalizedValue> = indices
+                        .iter()
+                        .map(|&i| {
+                            fields
+                                .get(i)
+                                .map(|f| parquet_field_to_value_hinted(f, ts_units[i]))
+                                .unwrap_or_default()
+                        })
+                        .collect();
+                    result.push(values);
+                    if let Some(limit) = limit {
+                        if result.len() >= limit {
+                            break;
+                        }
+                    }
+                }
+                let _ = table;
+                Ok(result)
+            }
         }
     }
 
@@ -818,6 +1075,12 @@ impl DataSourceInner {
                 }
             },
             DataSourceInner::CSV(csv) => {
+                if order_by.is_some_and(|o| !o.is_empty()) {
+                    eprintln!(
+                        "[dbcon] warning: order_by ignored for CSV source '{}': CSV does not support ordered reads",
+                        csv.path
+                    );
+                }
                 let mut rdr = csv::ReaderBuilder::new()
                     .delimiter(csv.delimiter)
                     .has_headers(csv.has_headers)
@@ -845,6 +1108,103 @@ impl DataSourceInner {
                         .collect();
                     handler(values);
                 }
+            }
+            #[cfg(feature = "parquet")]
+            DataSourceInner::Parquet(p) => {
+                if order_by.is_some_and(|o| !o.is_empty()) {
+                    eprintln!(
+                        "[dbcon] warning: order_by ignored for Parquet source '{}': Parquet does not support ordered reads",
+                        p.path
+                    );
+                }
+                let reader = p.open()?;
+                let schema = reader.metadata().file_metadata().schema();
+                let field_names: Vec<&str> =
+                    schema.get_fields().iter().map(|f| f.name()).collect();
+                let ts_units: Vec<Option<TimeUnit>> = schema
+                    .get_fields()
+                    .iter()
+                    .map(|f| parquet_timestamp_unit(f))
+                    .collect();
+                let indices: Vec<usize> = columns
+                    .iter()
+                    .map(|col| {
+                        field_names.iter().position(|h| h == col).ok_or_else(|| {
+                            anyhow::anyhow!("Column '{}' not found in Parquet", col)
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                for row in reader.get_row_iter(None)? {
+                    let row = row?;
+                    let fields: Vec<&Field> =
+                        row.get_column_iter().map(|(_, f)| f).collect();
+                    let values: Vec<NormalizedValue> = indices
+                        .iter()
+                        .map(|&i| {
+                            fields
+                                .get(i)
+                                .map(|f| parquet_field_to_value_hinted(f, ts_units[i]))
+                                .unwrap_or_default()
+                        })
+                        .collect();
+                    handler(values);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Stream rows for an arbitrary SQL query. SQL backends only; CSV and Parquet
+    /// return an error. See [`DataSource::for_each_row_sql`] for the public wrapper.
+    pub async fn for_each_row_sql(
+        &self,
+        sql: &str,
+        mut handler: impl FnMut(Vec<(String, NormalizedValue)>),
+    ) -> anyhow::Result<()> {
+        use futures::StreamExt;
+        match self {
+            DataSourceInner::SQL(sql_pool) => match sql_pool {
+                SQLPool::Postgres(pool) => {
+                    let mut stream = sqlx::query(sql).fetch(pool);
+                    while let Some(result) = stream.next().await {
+                        let row = result?;
+                        let named: Vec<(String, NormalizedValue)> = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                (
+                                    col.name().to_string(),
+                                    extract_row_column_value(&row, col).unwrap_or_default(),
+                                )
+                            })
+                            .collect();
+                        handler(named);
+                    }
+                }
+                SQLPool::Sqlite(pool) => {
+                    let mut stream = sqlx::query(sql).fetch(pool);
+                    while let Some(result) = stream.next().await {
+                        let row = result?;
+                        let named: Vec<(String, NormalizedValue)> = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                (
+                                    col.name().to_string(),
+                                    extract_row_column_value(&row, col).unwrap_or_default(),
+                                )
+                            })
+                            .collect();
+                        handler(named);
+                    }
+                }
+            },
+            DataSourceInner::CSV(_) => {
+                anyhow::bail!("for_each_row_sql is not supported for CSV data sources");
+            }
+            #[cfg(feature = "parquet")]
+            DataSourceInner::Parquet(_) => {
+                anyhow::bail!("for_each_row_sql is not supported for Parquet data sources");
             }
         }
         Ok(())
@@ -898,6 +1258,33 @@ impl DataSourceInner {
                 }
                 Ok(values)
             }
+            #[cfg(feature = "parquet")]
+            DataSourceInner::Parquet(p) => {
+                let reader = p.open()?;
+                let schema = reader.metadata().file_metadata().schema();
+                let idx = schema
+                    .get_fields()
+                    .iter()
+                    .position(|f| f.name() == column)
+                    .ok_or_else(|| anyhow::anyhow!("Column '{}' not found in Parquet", column))?;
+                let unit = parquet_timestamp_unit(&schema.get_fields()[idx]);
+                let mut values = Vec::new();
+                let mut seen = std::collections::HashSet::new();
+                for row in reader.get_row_iter(None)? {
+                    let row = row?;
+                    if let Some((_, field)) = row.get_column_iter().nth(idx) {
+                        if matches!(field, Field::Null) {
+                            continue;
+                        }
+                        let s = parquet_field_to_value_hinted(field, unit).to_string();
+                        if !s.is_empty() && seen.insert(s.clone()) {
+                            values.push(s);
+                        }
+                    }
+                }
+                let _ = table;
+                Ok(values)
+            }
         }
     }
 
@@ -945,6 +1332,38 @@ impl DataSourceInner {
                         }
                     }
                 }
+                Ok(result)
+            }
+            #[cfg(feature = "parquet")]
+            DataSourceInner::Parquet(p) => {
+                let reader = p.open()?;
+                let schema = reader.metadata().file_metadata().schema();
+                let ts_units: HashMap<String, Option<TimeUnit>> = schema
+                    .get_fields()
+                    .iter()
+                    .map(|f| (f.name().to_string(), parquet_timestamp_unit(f)))
+                    .collect();
+                let mut result: Vec<HashMap<String, String>> = Vec::new();
+                for row in reader.get_row_iter(None)? {
+                    let row = row?;
+                    let named = row
+                        .get_column_iter()
+                        .map(|(name, field)| {
+                            let unit = ts_units.get(name).copied().flatten();
+                            (
+                                name.clone(),
+                                parquet_field_to_value_hinted(field, unit).to_string(),
+                            )
+                        })
+                        .collect();
+                    result.push(named);
+                    if let Some(limit) = limit {
+                        if result.len() >= limit {
+                            break;
+                        }
+                    }
+                }
+                let _ = table;
                 Ok(result)
             }
         }
@@ -1047,10 +1466,33 @@ fn parse_csv_query_delimiter(query: &str) -> Option<u8> {
         let key = parts.next()?;
         let value = parts.next()?;
         if key == "delimiter" {
-            return parse_delimiter_spec(value);
+            let decoded = percent_decode(value);
+            return parse_delimiter_spec(&decoded);
         }
     }
     None
+}
+
+/// Decode `%XX` hex escapes in a URL-encoded string. Returns the original string
+/// on any malformed escape. We only need the minimal subset for delimiter values.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = (bytes[i + 1] as char).to_digit(16);
+            let lo = (bytes[i + 2] as char).to_digit(16);
+            if let (Some(h), Some(l)) = (hi, lo) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| s.to_string())
 }
 
 /// Parse a human-friendly delimiter spec (`,`, `;`, `tab`, `\t`, `pipe`, etc.)
@@ -1103,6 +1545,244 @@ impl CSVSource {
         );
 
         Ok(tables)
+    }
+}
+
+/// A Parquet file treated as a single-table data source.
+///
+/// The schema is read from the file's footer, so there are no delimiter or header
+/// options as with [`CSVSource`].
+#[cfg(feature = "parquet")]
+#[derive(Debug)]
+pub struct ParquetSource {
+    pub path: String,
+}
+
+/// Table name under which a [`ParquetSource`] exposes its single table.
+#[cfg(feature = "parquet")]
+pub const PARQUET_TABLE_NAME: &str = "main";
+
+#[cfg(feature = "parquet")]
+impl ParquetSource {
+    fn open(&self) -> anyhow::Result<SerializedFileReader<File>> {
+        let file = File::open(&self.path)?;
+        Ok(SerializedFileReader::new(file)?)
+    }
+
+    /// Build a single-table entry under [`PARQUET_TABLE_NAME`], one column per top-level
+    /// field with its `NormalizedType` inferred via [`parquet_field_type`].
+    pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
+        let reader = self.open()?;
+        let schema = reader.metadata().file_metadata().schema();
+        let columns = schema
+            .get_fields()
+            .iter()
+            .map(|f| {
+                let name = f.name().to_string();
+                let col_type = parquet_field_type(f);
+                let is_nullable = matches!(
+                    f.get_basic_info().repetition(),
+                    parquet::basic::Repetition::OPTIONAL
+                );
+                (
+                    name.clone(),
+                    DataColumnInfo {
+                        name,
+                        col_type,
+                        is_nullable,
+                    },
+                )
+            })
+            .collect();
+
+        let mut tables = HashMap::new();
+        tables.insert(
+            PARQUET_TABLE_NAME.to_string(),
+            DataTableInfo {
+                name: PARQUET_TABLE_NAME.to_string(),
+                columns,
+                primary_keys: vec![],
+                foreign_keys: vec![],
+            },
+        );
+        Ok(tables)
+    }
+}
+
+/// Map a top-level Parquet schema field to a [`NormalizedType`].
+/// Primitive leaves combine physical + logical/converted type; anything else
+/// (nested Group/List/Map) falls through to `Unknown`.
+#[cfg(feature = "parquet")]
+fn parquet_field_type(t: &ParquetType) -> NormalizedType {
+    let basic = t.get_basic_info();
+    // Logical types take precedence over the older converted types.
+    if let Some(lt) = basic.logical_type_ref() {
+        match lt {
+            LogicalType::String | LogicalType::Enum | LogicalType::Uuid => {
+                return NormalizedType::Text;
+            }
+            LogicalType::Json | LogicalType::Bson => return NormalizedType::Json,
+            LogicalType::Date | LogicalType::Timestamp { .. } | LogicalType::Time { .. } => {
+                return NormalizedType::Timestamp;
+            }
+            LogicalType::Integer { .. } => return NormalizedType::Integer,
+            LogicalType::Decimal { .. } => return NormalizedType::Float,
+            LogicalType::Float16 => return NormalizedType::Float,
+            _ => {}
+        }
+    }
+    match basic.converted_type() {
+        ConvertedType::UTF8 | ConvertedType::ENUM => return NormalizedType::Text,
+        ConvertedType::JSON | ConvertedType::BSON => return NormalizedType::Json,
+        ConvertedType::DATE
+        | ConvertedType::TIMESTAMP_MILLIS
+        | ConvertedType::TIMESTAMP_MICROS
+        | ConvertedType::TIME_MILLIS
+        | ConvertedType::TIME_MICROS => return NormalizedType::Timestamp,
+        ConvertedType::INT_8
+        | ConvertedType::INT_16
+        | ConvertedType::INT_32
+        | ConvertedType::INT_64
+        | ConvertedType::UINT_8
+        | ConvertedType::UINT_16
+        | ConvertedType::UINT_32
+        | ConvertedType::UINT_64 => return NormalizedType::Integer,
+        ConvertedType::DECIMAL => return NormalizedType::Float,
+        _ => {}
+    }
+    if let ParquetType::PrimitiveType { physical_type, .. } = t {
+        return match physical_type {
+            PhysicalType::BOOLEAN => NormalizedType::Boolean,
+            PhysicalType::INT32 | PhysicalType::INT64 => NormalizedType::Integer,
+            PhysicalType::INT96 => NormalizedType::Timestamp,
+            PhysicalType::FLOAT | PhysicalType::DOUBLE => NormalizedType::Float,
+            PhysicalType::BYTE_ARRAY | PhysicalType::FIXED_LEN_BYTE_ARRAY => {
+                NormalizedType::Unknown("bytes".to_string())
+            }
+        };
+    }
+    NormalizedType::Unknown(format!("{:?}", t))
+}
+
+/// Return the [`TimeUnit`] of a top-level Parquet field if it is a timestamp column,
+/// covering both `LogicalType::Timestamp` and the legacy
+/// `ConvertedType::TIMESTAMP_{MILLIS,MICROS}`.
+#[cfg(feature = "parquet")]
+fn parquet_timestamp_unit(t: &ParquetType) -> Option<TimeUnit> {
+    let basic = t.get_basic_info();
+    if let Some(LogicalType::Timestamp { unit, .. }) = basic.logical_type_ref() {
+        return Some(*unit);
+    }
+    match basic.converted_type() {
+        ConvertedType::TIMESTAMP_MILLIS => Some(TimeUnit::MILLIS),
+        ConvertedType::TIMESTAMP_MICROS => Some(TimeUnit::MICROS),
+        _ => None,
+    }
+}
+
+/// Convert an integer `n` interpreted in the given `unit` since the Unix epoch into
+/// a `NormalizedValue::Timestamp`, falling back to `Integer(n)` if the value is
+/// out of `chrono`'s representable range.
+#[cfg(feature = "parquet")]
+fn integer_as_timestamp(n: i64, unit: TimeUnit) -> NormalizedValue {
+    let dt = match unit {
+        TimeUnit::MILLIS => chrono::DateTime::from_timestamp_millis(n),
+        TimeUnit::MICROS => chrono::DateTime::from_timestamp_micros(n),
+        TimeUnit::NANOS => {
+            let secs = n.div_euclid(1_000_000_000);
+            let nanos = n.rem_euclid(1_000_000_000) as u32;
+            chrono::DateTime::from_timestamp(secs, nanos)
+        }
+    };
+    match dt {
+        Some(dt) => NormalizedValue::Timestamp(dt.fixed_offset()),
+        None => NormalizedValue::Integer(n),
+    }
+}
+
+/// Convert a Parquet `Field` into a `NormalizedValue`, using an optional timestamp
+/// `unit` hint from the column schema. The hint re-tags integer fields as timestamps,
+/// needed for `TIMESTAMP(NANOS)` columns: parquet-rs surfaces these as plain
+/// `Field::Long` because its `Field` enum has no nanosecond timestamp variant.
+#[cfg(feature = "parquet")]
+fn parquet_field_to_value_hinted(field: &Field, unit: Option<TimeUnit>) -> NormalizedValue {
+    if let Some(unit) = unit {
+        match field {
+            Field::Byte(n) => return integer_as_timestamp(*n as i64, unit),
+            Field::Short(n) => return integer_as_timestamp(*n as i64, unit),
+            Field::Int(n) => return integer_as_timestamp(*n as i64, unit),
+            Field::Long(n) => return integer_as_timestamp(*n, unit),
+            Field::UByte(n) => return integer_as_timestamp(*n as i64, unit),
+            Field::UShort(n) => return integer_as_timestamp(*n as i64, unit),
+            Field::UInt(n) => return integer_as_timestamp(*n as i64, unit),
+            Field::ULong(n) if *n <= i64::MAX as u64 => {
+                return integer_as_timestamp(*n as i64, unit);
+            }
+            _ => {}
+        }
+    }
+    parquet_field_to_value(field)
+}
+
+/// Convert a Parquet `Field` into a `NormalizedValue`.
+///
+/// Numeric widenings are lossless except for `ULong` values above `i64::MAX`,
+/// which are stringified into `Unknown` rather than silently wrapping. Nested
+/// `Group`/`List`/`Map` become `Unknown(Debug-repr)`.
+#[cfg(feature = "parquet")]
+fn parquet_field_to_value(field: &Field) -> NormalizedValue {
+    match field {
+        Field::Null => NormalizedValue::Null,
+        Field::Bool(b) => NormalizedValue::Boolean(*b),
+        Field::Byte(n) => NormalizedValue::Integer(*n as i64),
+        Field::Short(n) => NormalizedValue::Integer(*n as i64),
+        Field::Int(n) => NormalizedValue::Integer(*n as i64),
+        Field::Long(n) => NormalizedValue::Integer(*n),
+        Field::UByte(n) => NormalizedValue::Integer(*n as i64),
+        Field::UShort(n) => NormalizedValue::Integer(*n as i64),
+        Field::UInt(n) => NormalizedValue::Integer(*n as i64),
+        Field::ULong(n) => {
+            if *n <= i64::MAX as u64 {
+                NormalizedValue::Integer(*n as i64)
+            } else {
+                NormalizedValue::Unknown(n.to_string())
+            }
+        }
+        Field::Float(f) => NormalizedValue::Float(*f as f64),
+        Field::Float16(f) => NormalizedValue::Float(f64::from(*f)),
+        Field::Double(f) => NormalizedValue::Float(*f),
+        Field::Str(s) => NormalizedValue::Text(s.clone()),
+        Field::Bytes(b) => NormalizedValue::Unknown(format!("{:?}", b.data())),
+        Field::Date(days) => {
+            // Parquet DATE: days since 1970-01-01 UTC.
+            match chrono::DateTime::from_timestamp((*days as i64) * 86_400, 0) {
+                Some(dt) => NormalizedValue::Timestamp(dt.fixed_offset()),
+                None => NormalizedValue::Unknown(format!("date({})", days)),
+            }
+        }
+        Field::TimestampMillis(ms) => match chrono::DateTime::from_timestamp_millis(*ms) {
+            Some(dt) => NormalizedValue::Timestamp(dt.fixed_offset()),
+            None => NormalizedValue::Unknown(format!("timestamp_ms({})", ms)),
+        },
+        Field::TimestampMicros(us) => match chrono::DateTime::from_timestamp_micros(*us) {
+            Some(dt) => NormalizedValue::Timestamp(dt.fixed_offset()),
+            None => NormalizedValue::Unknown(format!("timestamp_us({})", us)),
+        },
+        // TIME types have no associated date; stringify into Text since NormalizedValue
+        // has no time-of-day variant.
+        Field::TimeMillis(_) | Field::TimeMicros(_) => NormalizedValue::Text(format!("{}", field)),
+        // Decimal has no Display at the struct level, but `Field`'s Display
+        // writes it via `convert_decimal_to_string`, so reuse that.
+        Field::Decimal(_) => {
+            let s = format!("{}", field);
+            match s.parse::<f64>() {
+                Ok(f) => NormalizedValue::Float(f),
+                Err(_) => NormalizedValue::Text(s),
+            }
+        }
+        Field::Group(_) | Field::ListInternal(_) | Field::MapInternal(_) => {
+            NormalizedValue::Unknown(format!("{:?}", field))
+        }
     }
 }
 

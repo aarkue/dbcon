@@ -3,10 +3,10 @@ name = "dbcon"
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
-description = "Universal connector for tabular data sources (PostgreSQL, SQLite, CSV) with schema discovery and normalised row values."
+description = "Universal connector for tabular data sources (PostgreSQL, SQLite, CSV, Parquet) with schema discovery and normalised row values."
 repository = "https://github.com/aarkue/dbcon"
 readme = "README.md"
-keywords = ["database", "postgres", "sqlite", "csv", "schema"]
+keywords = ["database", "postgres", "sqlite", "csv", "parquet"]
 categories = ["database"]
 
 [dependencies]
@@ -16,9 +16,14 @@ sea-schema = { git = "https://github.com/SeaQL/sea-schema", version = "0.17.0-rc
 anyhow = "1.0"
 futures = "0.3"
 csv = "1.4.0"
+parquet = { version = "58", optional = true }
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
 chrono = { version = "0.4.43", features = ["serde"] }
+
+[features]
+default = ["parquet"]
+parquet = ["dep:parquet"]
 
 [dev-dependencies]
 dotenvy = "0.15"
