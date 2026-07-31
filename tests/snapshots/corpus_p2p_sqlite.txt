@@ -1,0 +1,173 @@
+tables: 23
+
+table "event" rows=14671
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "event_pk": (ocel_id)
+  fk "event_fk_0": (ocel_type) -> "event_map_type"(ocel_type)
+
+table "event_Approve Purchase Order" rows=1598
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Approve Purchase Order_pk": (ocel_id)
+
+table "event_Approve Purchase Requisition" rows=607
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Approve Purchase Requisition_pk": (ocel_id)
+
+table "event_Create Goods Receipt" rows=4042
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Create Goods Receipt_pk": (ocel_id)
+
+table "event_Create Invoice Receipt" rows=1941
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Create Invoice Receipt_pk": (ocel_id)
+
+table "event_Create Purchase Order" rows=1598
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Create Purchase Order_pk": (ocel_id)
+
+table "event_Create Purchase Requisition" rows=729
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Create Purchase Requisition_pk": (ocel_id)
+
+table "event_Create Request for Quotation" rows=927
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Create Request for Quotation_pk": (ocel_id)
+
+table "event_Delegate Purchase Requisition Approval" rows=122
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Delegate Purchase Requisition Approval_pk": (ocel_id)
+
+table "event_Execute Payment" rows=1166
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Execute Payment_pk": (ocel_id)
+
+table "event_Perform Two-Way Match" rows=1941
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_Perform Two-Way Match_pk": (ocel_id)
+
+table "event_map_type" rows=10
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "event_map_type_pk": (ocel_type)
+
+table "event_object" rows=35927
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+  key "event_object_pk": (ocel_event_id, ocel_object_id, ocel_qualifier)
+  fk "event_object_fk_0": (ocel_object_id) -> "object"(ocel_id)
+  fk "event_object_fk_1": (ocel_event_id) -> "event"(ocel_id)
+
+table "object" rows=9543
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "object_pk": (ocel_id)
+  fk "object_fk_0": (ocel_type) -> "object_map_type"(ocel_type)
+
+table "object_goods receipt" rows=1941
+  col "Invoice Receipt (MSEG-WEAHR)": Text NULL
+  col "Movement Type (MSEG-BWART)": Text NULL
+  col "Posting Date (MKPF-BLDAT)": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_invoice receipt" rows=927
+  col "Credit Amount (BSEG-WRBTR)": Text NULL
+  col "Debit Amount (BSEG-DMBTR)": Text NULL
+  col "Payment Block (RSEG-ZLSPR)": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_map_type" rows=7
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "object_map_type_pk": (ocel_type)
+
+table "object_material" rows=2296
+  col "Delivery Date (EKPO-BEDAT)": Timestamp NULL
+  col "Material (EKPO-MATNR)": Text NULL
+  col "Net Price (EKPO-NETPR)": Float NULL
+  col "Plant (EKPO-WERKS)": Text NULL
+  col "Quantity (EKPO-MENGE)": Float NULL
+  col "Storage Location (EKPO-LGORT)": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_object" rows=18374
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+  key "object_object_pk": (ocel_source_id, ocel_target_id, ocel_qualifier)
+
+table "object_payment" rows=927
+  col "Amount (DMBTR)": Text NULL
+  col "Payment Method (ZLSCH)": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_purchase_order" rows=1598
+  col "Document Type (EKKO-BSART)": Text NULL
+  col "Purchasing Group (EKKO-EKGRP)": Text NULL
+  col "Purchasing Organization (EKKO-EKORG)": Text NULL
+  col "Release Status (EKKO-FRGZU)": Text NULL
+  col "Vendor (EKKO-LIFNR)": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_purchase_requisition" rows=927
+  col "Purchasing Group (EBAN-EKGRP)": Text NULL
+  col "Release Indicator (EBAN-FRGZU)": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_quotation" rows=927
+  col "Purchasing Group (EBAN-EKGRP)": Text NULL
+  col "Purchasing Organization (EBAN-EKORG)": Text NULL
+  col "RFQ Type (EBAN-BSART)": Text NULL
+  col "Vendor (EBAN-LIFNR)": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL

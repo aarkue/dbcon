@@ -1,0 +1,182 @@
+tables: 23
+
+table "event" rows=14671
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "event_pk": (ocel_id)
+  fk "event_fk_0": (ocel_type) -> "event_map_type"(ocel_type)
+
+table "event_ApprovePurchaseOrder" rows=1598
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_ApprovePurchaseOrder_pk": (ocel_id)
+
+table "event_ApprovePurchaseRequisition" rows=607
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_ApprovePurchaseRequisition_pk": (ocel_id)
+
+table "event_CreateGoodsReceipt" rows=4042
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_CreateGoodsReceipt_pk": (ocel_id)
+
+table "event_CreateInvoiceReceipt" rows=1941
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_CreateInvoiceReceipt_pk": (ocel_id)
+
+table "event_CreatePurchaseOrder" rows=1598
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_CreatePurchaseOrder_pk": (ocel_id)
+
+table "event_CreatePurchaseRequisition" rows=729
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_CreatePurchaseRequisition_pk": (ocel_id)
+
+table "event_CreateRequestforQuotation" rows=927
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_CreateRequestforQuotation_pk": (ocel_id)
+
+table "event_DelegatePurchaseRequisitionApproval" rows=122
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_DelegatePurchaseRequisitionApproval_pk": (ocel_id)
+
+table "event_ExecutePayment" rows=1166
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_ExecutePayment_pk": (ocel_id)
+
+table "event_PerformTwoWayMatch" rows=1941
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_PerformTwoWayMatch_pk": (ocel_id)
+
+table "event_map_type" rows=10
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "event_map_type_pk": (ocel_type)
+
+table "event_object" rows=35927
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+  key "event_object_pk": (ocel_event_id, ocel_object_id, ocel_qualifier)
+  fk "event_object_fk_0": (ocel_object_id) -> "object"(ocel_id)
+  fk "event_object_fk_1": (ocel_event_id) -> "event"(ocel_id)
+
+table "object" rows=9543
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "object_pk": (ocel_id)
+  fk "object_fk_0": (ocel_type) -> "object_map_type"(ocel_type)
+
+table "object_goodsreceipt" rows=11966
+  col "InvoiceReceiptMSEGWEAHR": Text NULL
+  col "MovementTypeMSEGBWART": Text NULL
+  col "PostingDateMKPFBLDAT": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_goodsreceipt_fk_0": (ocel_id) -> "object"(ocel_id)
+
+table "object_invoicereceipt" rows=8691
+  col "CreditAmountBSEGWRBTR": Text NULL
+  col "DebitAmountBSEGDMBTR": Text NULL
+  col "PaymentBlockRSEGZLSPR": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_invoicereceipt_fk_0": (ocel_id) -> "object"(ocel_id)
+
+table "object_map_type" rows=7
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "object_map_type_pk": (ocel_type)
+
+table "object_material" rows=2296
+  col "DeliveryDateEKPOBEDAT": Timestamp NULL
+  col "MaterialEKPOMATNR": Text NULL
+  col "NetPriceEKPONETPR": Float NULL
+  col "PlantEKPOWERKS": Text NULL
+  col "QuantityEKPOMENGE": Float NULL
+  col "StorageLocationEKPOLGORT": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_material_fk_0": (ocel_id) -> "object"(ocel_id)
+
+table "object_object" rows=20402
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+  key "object_object_pk": (ocel_source_id, ocel_target_id, ocel_qualifier)
+  fk "object_object_fk_0": (ocel_target_id) -> "object"(ocel_id)
+  fk "object_object_fk_1": (ocel_source_id) -> "object"(ocel_id)
+
+table "object_payment" rows=3259
+  col "AmountDMBTR": Text NULL
+  col "PaymentMethodZLSCH": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_payment_fk_0": (ocel_id) -> "object"(ocel_id)
+
+table "object_purchase_order" rows=9588
+  col "DocumentTypeEKKOBSART": Text NULL
+  col "PurchasingGroupEKKOEKGRP": Text NULL
+  col "PurchasingOrganizationEKKOEKORG": Text NULL
+  col "ReleaseStatusEKKOFRGZU": Text NULL
+  col "VendorEKKOLIFNR": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_purchase_order_fk_0": (ocel_id) -> "object"(ocel_id)
+
+table "object_purchase_requisition" rows=2583
+  col "PurchasingGroupEBANEKGRP": Text NULL
+  col "ReleaseIndicatorEBANFRGZU": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_purchase_requisition_fk_0": (ocel_id) -> "object"(ocel_id)
+
+table "object_quotation" rows=4635
+  col "PurchasingGroupEBANEKGRP": Text NULL
+  col "PurchasingOrganizationEBANEKORG": Text NULL
+  col "RFQTypeEBANBSART": Text NULL
+  col "VendorEBANLIFNR": Text NULL
+  col "new_value": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  fk "object_quotation_fk_0": (ocel_id) -> "object"(ocel_id)

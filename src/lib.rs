@@ -20,470 +20,70 @@
 //! }
 //! # Ok(()) }
 //! ```
+//!
+//! ## Async where it earns its keep, synchronous where it does not
+//!
+//! **Connecting and discovering a schema are `async`. Reading rows is not.**
+//!
+//! Connection setup and schema discovery involve network round trips and happen once per
+//! source, so they belong in async. Reading rows is a tight loop over a callback --
+//! [`DataSource::scan`] takes `&mut dyn FnMut(&[NormalizedValue]) -> ControlFlow<()>`, and
+//! there is no await point between two rows for a caller to interleave anything with. Three
+//! of the four backends (SQLite via `rusqlite`, CSV, Parquet) are blocking code all the way
+//! down; only PostgreSQL is genuinely async, and it drives its own runtime once per scan.
+//!
+//! An async caller is therefore responsible for the bridge, because only it knows its own
+//! runtime: wrap a scan in `tokio::task::spawn_blocking`. Calling a row-reading method from
+//! inside a runtime with a PostgreSQL source is refused with an error naming that, rather
+//! than panicking inside Tokio.
+//!
+//! ## Feature flags
+//!
+//! Nothing is enabled by default; pick the backends you need.
+//!
+//! | Feature | Enables | Pulls in |
+//! |---|---|---|
+//! | `sqlite` | `sqlite:` connection strings | `rusqlite` |
+//! | `postgres` | `postgres://` / `postgresql://` | `sqlx` with its PostgreSQL driver |
+//! | `csv` | `csv://` and `*.csv` paths | `csv` |
+//! | `parquet` | `parquet://` and `*.parquet` paths | `parquet` |
+//!
+//! `sqlx` is optional and, notably, **not** what `sqlite` uses: see [`mod@sqlite`] for why
+//! stepping SQLite's own statement handle beats routing every row through a worker thread
+//! and a channel. `sql` is an internal aggregate feature enabled by `postgres`; it is not
+//! usable on its own.
+
+// With no backend feature enabled `DataSourceInner` is uninhabited, so every dispatch
+// body below is unreachable and its bindings are never read. That is the point of the
+// build, not an oversight.
+#![cfg_attr(
+    not(any(feature = "sql", feature = "csv", feature = "parquet")),
+    allow(unused_variables, unused_mut, unreachable_code)
+)]
+
+#[cfg(all(feature = "sql", not(feature = "postgres")))]
+compile_error!("the `sql` feature is internal plumbing; enable the `postgres` feature instead");
+
+mod discovery;
+#[cfg(feature = "sqlite")]
+pub mod sqlite;
+mod types;
+
+#[cfg(feature = "sqlite")]
+pub use sqlite::SqliteSource;
+pub use types::{NormalizedType, NormalizedValue, SqliteAffinity, sqlite_affinity};
 
 use serde::{Deserialize, Serialize};
-use sqlx::{ColumnIndex, Decode, Row};
-pub mod manual;
+use std::collections::HashMap;
+use std::ops::ControlFlow;
 
-/// A backend-agnostic classification of a column's data type.
-///
-/// Raw SQL / CSV types are mapped to one of these variants via
-/// [`NormalizedType::from_raw`] or the conversions from `sea_schema` types.
-/// `Unknown` preserves the original lowercase type string so callers can
-/// make their own decisions.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum NormalizedType {
-    Text,
-    Integer,
-    Float,
-    Boolean,
-    Timestamp,
-    Json,
-    Unknown(String),
-}
+#[cfg(feature = "sql")]
+use chrono::{FixedOffset, NaiveDateTime};
+#[cfg(feature = "sql")]
+use sqlx::{Column, ColumnIndex, Decode, Row, TypeInfo};
 
-/// A backend-agnostic row value.
-///
-/// All supported sources decode their native types into one of these variants.
-/// `Unknown` carries the string form of values that couldn't be decoded into a
-/// typed variant, so callers can still inspect or re-parse them.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub enum NormalizedValue {
-    Text(String),
-    Integer(i64),
-    Float(f64),
-    Boolean(bool),
-    Timestamp(chrono::DateTime<chrono::FixedOffset>),
-    Json(serde_json::Value),
-    Unknown(String),
-    #[default]
-    Null,
-}
-
-impl NormalizedValue {
-    /// Returns a string slice for Text/Unknown variants without cloning.
-    #[inline]
-    pub fn as_str(&self) -> Option<&str> {
-        match self {
-            NormalizedValue::Text(s) | NormalizedValue::Unknown(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    /// Returns the timestamp directly if this is a Timestamp variant.
-    #[inline]
-    pub fn as_timestamp(&self) -> Option<&chrono::DateTime<chrono::FixedOffset>> {
-        match self {
-            NormalizedValue::Timestamp(t) => Some(t),
-            _ => None,
-        }
-    }
-}
-
-impl Display for NormalizedValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NormalizedValue::Text(s) => write!(f, "{}", s),
-            NormalizedValue::Integer(i) => write!(f, "{}", i),
-            NormalizedValue::Float(fl) => write!(f, "{}", fl),
-            NormalizedValue::Boolean(b) => write!(f, "{}", b),
-            NormalizedValue::Timestamp(t) => write!(f, "{}", t),
-            NormalizedValue::Json(j) => write!(f, "{}", j),
-            NormalizedValue::Unknown(u) => write!(f, "{}", u),
-            NormalizedValue::Null => write!(f, "NULL"),
-        }
-    }
-}
-
-impl<T> From<Option<T>> for NormalizedValue
-where
-    T: Into<NormalizedValue>,
-{
-    fn from(value: Option<T>) -> Self {
-        match value {
-            Some(v) => v.into(),
-            None => Self::Null,
-        }
-    }
-}
-
-impl From<String> for NormalizedValue {
-    fn from(value: String) -> Self {
-        Self::Text(value)
-    }
-}
-
-impl From<i64> for NormalizedValue {
-    fn from(value: i64) -> Self {
-        Self::Integer(value)
-    }
-}
-
-impl From<i32> for NormalizedValue {
-    fn from(value: i32) -> Self {
-        Self::Integer(value.into())
-    }
-}
-
-impl From<f64> for NormalizedValue {
-    fn from(value: f64) -> Self {
-        Self::Float(value)
-    }
-}
-
-impl From<f32> for NormalizedValue {
-    fn from(value: f32) -> Self {
-        Self::Float(value.into())
-    }
-}
-
-impl From<bool> for NormalizedValue {
-    fn from(value: bool) -> Self {
-        Self::Boolean(value)
-    }
-}
-
-impl From<chrono::DateTime<chrono::FixedOffset>> for NormalizedValue {
-    fn from(value: chrono::DateTime<chrono::FixedOffset>) -> Self {
-        Self::Timestamp(value)
-    }
-}
-
-impl From<&sea_schema::sea_query::ColumnType> for NormalizedType {
-    fn from(col_type: &sea_schema::sea_query::ColumnType) -> Self {
-        match col_type {
-            sea_schema::sea_query::ColumnType::Char(_) => Self::Text,
-            sea_schema::sea_query::ColumnType::String(_) => Self::Text,
-            sea_schema::sea_query::ColumnType::Text => Self::Text,
-            sea_schema::sea_query::ColumnType::TinyInteger => Self::Integer,
-            sea_schema::sea_query::ColumnType::SmallInteger => Self::Integer,
-            sea_schema::sea_query::ColumnType::Integer => Self::Integer,
-            sea_schema::sea_query::ColumnType::BigInteger => Self::Integer,
-            sea_schema::sea_query::ColumnType::TinyUnsigned => Self::Integer,
-            sea_schema::sea_query::ColumnType::SmallUnsigned => Self::Integer,
-            sea_schema::sea_query::ColumnType::Unsigned => Self::Integer,
-            sea_schema::sea_query::ColumnType::BigUnsigned => Self::Integer,
-            sea_schema::sea_query::ColumnType::Float => Self::Float,
-            sea_schema::sea_query::ColumnType::Double => Self::Float,
-            sea_schema::sea_query::ColumnType::Decimal(_) => Self::Float,
-            sea_schema::sea_query::ColumnType::DateTime => Self::Timestamp,
-            sea_schema::sea_query::ColumnType::Timestamp => Self::Timestamp,
-            sea_schema::sea_query::ColumnType::TimestampWithTimeZone => Self::Timestamp,
-            sea_schema::sea_query::ColumnType::Uuid => Self::Text,
-            sea_schema::sea_query::ColumnType::Boolean => Self::Boolean,
-            sea_schema::sea_query::ColumnType::Json => Self::Json,
-            x => Self::Unknown(format!("{:?}", x)),
-        }
-    }
-}
-
-impl From<&sea_schema::postgres::def::Type> for NormalizedType {
-    fn from(col_type: &sea_schema::postgres::def::Type) -> Self {
-        match col_type {
-            sea_schema::postgres::def::Type::Char(_) => Self::Text,
-            sea_schema::postgres::def::Type::Varchar(_) => Self::Text,
-            sea_schema::postgres::def::Type::Text => Self::Text,
-            sea_schema::postgres::def::Type::SmallInt => Self::Integer,
-            sea_schema::postgres::def::Type::Integer => Self::Integer,
-            sea_schema::postgres::def::Type::BigInt => Self::Integer,
-            sea_schema::postgres::def::Type::DoublePrecision => Self::Float,
-            sea_schema::postgres::def::Type::Decimal(_) => Self::Float,
-            sea_schema::postgres::def::Type::Date => Self::Timestamp,
-            sea_schema::postgres::def::Type::Timestamp(_) => Self::Timestamp,
-            sea_schema::postgres::def::Type::TimeWithTimeZone(_) => Self::Timestamp,
-            sea_schema::postgres::def::Type::TimestampWithTimeZone(_) => Self::Timestamp,
-            sea_schema::postgres::def::Type::Uuid => Self::Text,
-            sea_schema::postgres::def::Type::Boolean => Self::Boolean,
-            sea_schema::postgres::def::Type::Json => Self::Json,
-            x => Self::Unknown(format!("{:?}", x)),
-        }
-    }
-}
-impl NormalizedType {
-    /// Infer a [`NormalizedType`] from a raw SQL type name string (case-insensitive).
-    ///
-    /// Recognised names include the common SQL/standard forms (`INTEGER`, `VARCHAR(n)`,
-    /// `TIMESTAMP WITH TIME ZONE`, etc.) and a few DB-specific synonyms (`SERIAL`, `CLOB`,
-    /// `NUMERIC`). Unrecognised names yield [`NormalizedType::Unknown`] with the lowercase
-    /// original preserved, allowing callers to decide how to handle them.
-    pub fn from_raw(raw_type: &str) -> Self {
-        let raw = raw_type.to_lowercase();
-        // Strip size/precision suffixes like "(10,2)" so "varchar(255)" and "numeric(10,2)"
-        // match the same as their bare names.
-        let base = raw.split('(').next().unwrap_or(&raw).trim();
-
-        match base {
-            "timestamp"
-            | "timestamptz"
-            | "timestamp with time zone"
-            | "timestamp without time zone"
-            | "datetime"
-            | "datetime2"
-            | "date"
-            | "time"
-            | "time with time zone"
-            | "time without time zone"
-            | "timetz" => Self::Timestamp,
-
-            "int"
-            | "int2"
-            | "int4"
-            | "int8"
-            | "integer"
-            | "bigint"
-            | "smallint"
-            | "tinyint"
-            | "mediumint"
-            | "serial"
-            | "bigserial"
-            | "smallserial" => Self::Integer,
-
-            "text"
-            | "ntext"
-            | "char"
-            | "nchar"
-            | "varchar"
-            | "nvarchar"
-            | "character"
-            | "character varying"
-            | "clob"
-            | "uuid"
-            | "string" => Self::Text,
-
-            "real"
-            | "float"
-            | "float4"
-            | "float8"
-            | "double"
-            | "double precision"
-            | "numeric"
-            | "decimal"
-            | "money" => Self::Float,
-
-            "bool" | "boolean" => Self::Boolean,
-
-            "json" | "jsonb" => Self::Json,
-
-            _ => {
-                // Fallback: a few common variants carry a distinguishing prefix/suffix.
-                // Order matters: check the most specific categories first.
-                if base.starts_with("timestamp") || base.starts_with("datetime") {
-                    Self::Timestamp
-                } else if base.ends_with("char") || base.ends_with("text") {
-                    Self::Text
-                } else if base.ends_with("serial") || base.ends_with("int") {
-                    Self::Integer
-                } else if base.ends_with("float") || base.ends_with("double") {
-                    Self::Float
-                } else {
-                    Self::Unknown(raw)
-                }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use sqlx::{PgPool, SqlitePool};
-
-    use crate::{CSVSource, DataSource};
-
-    #[tokio::test]
-    async fn test_postgres() -> anyhow::Result<()> {
-        dotenvy::dotenv().ok();
-        let url = std::env::var("POSTGRES_URL")
-            .expect("POSTGRES_URL must be set (see .env.example)");
-        let pool = PgPool::connect(&url).await?;
-        let ds = DataSource::new("Postgres Test".to_string(), pool).await?;
-
-        println!("Postgres:");
-        println!("{:?}", ds.tables.values().next().unwrap());
-        for row in ds
-            .get_first_rows(ds.get_all_tables().next().unwrap(), 5)
-            .await?
-        {
-            println!("\t{:?}", row);
-        }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_sqlite() -> anyhow::Result<()> {
-        dotenvy::dotenv().ok();
-        let path = std::env::var("SQLITE_PATH")
-            .expect("SQLITE_PATH must be set (see .env.example)");
-        let pool = SqlitePool::connect(&path).await?;
-        let ds = DataSource::new("SQLite Test".to_string(), pool).await?;
-
-        println!("SQLite:");
-        println!("{:?}", ds.tables.values().next().unwrap());
-        for row in ds
-            .get_first_rows(ds.get_all_tables().next().unwrap(), 5)
-            .await?
-        {
-            println!("\t{:?}", row);
-        }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_csv() -> anyhow::Result<()> {
-        dotenvy::dotenv().ok();
-        let path =
-            std::env::var("CSV_PATH").expect("CSV_PATH must be set (see .env.example)");
-        let csv = CSVSource {
-            path,
-            delimiter: b',',
-            has_headers: true,
-        };
-        let ds = DataSource::new("CSV Test".to_string(), csv).await?;
-
-        println!("CSV:");
-        println!("{:?}", ds.tables.values().next().unwrap());
-        for row in ds
-            .get_first_rows(ds.get_all_tables().next().unwrap(), 5)
-            .await?
-        {
-            println!("\t{:?}", row);
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "parquet")]
-    #[tokio::test]
-    async fn test_parquet() -> anyhow::Result<()> {
-        dotenvy::dotenv().ok();
-        let path = std::env::var("PARQUET_PATH")
-            .expect("PARQUET_PATH must be set (see .env.example)");
-        let ds = DataSource::new_parquet("Parquet Test".to_string(), path).await?;
-
-        println!("Parquet:");
-        println!("{:?}", ds.tables.values().next().unwrap());
-        for row in ds
-            .get_first_rows(ds.get_all_tables().next().unwrap(), 5)
-            .await?
-        {
-            println!("\t{:?}", row);
-        }
-        Ok(())
-    }
-
-    /// Roundtrip: write a tiny Parquet file with known schema + rows, then read
-    /// it back through DataSource and check types/values survive the trip.
-    #[cfg(feature = "parquet")]
-    #[tokio::test]
-    async fn parquet_roundtrip_reads_typed_values() -> anyhow::Result<()> {
-        use parquet::data_type::{ByteArray, ByteArrayType, Int64Type};
-        use parquet::file::properties::WriterProperties;
-        use parquet::file::writer::SerializedFileWriter;
-        use parquet::schema::parser::parse_message_type;
-        use std::sync::Arc;
-
-        let dir = std::env::temp_dir();
-        let path = dir.join(format!(
-            "dbcon_roundtrip_{}.parquet",
-            std::process::id()
-        ));
-        let path_str = path.to_string_lossy().to_string();
-
-        let schema = Arc::new(parse_message_type(
-            "message schema {
-                REQUIRED INT64 id;
-                REQUIRED BYTE_ARRAY name (UTF8);
-            }",
-        )?);
-        let props = Arc::new(WriterProperties::default());
-        {
-            let file = std::fs::File::create(&path)?;
-            let mut writer = SerializedFileWriter::new(file, schema, props)?;
-            let mut rg = writer.next_row_group()?;
-
-            let mut c0 = rg.next_column()?.unwrap();
-            c0.typed::<Int64Type>().write_batch(&[1, 2, 3], None, None)?;
-            c0.close()?;
-
-            let mut c1 = rg.next_column()?.unwrap();
-            let names: Vec<ByteArray> = ["alice", "bob", "carol"]
-                .iter()
-                .map(|s| ByteArray::from(*s))
-                .collect();
-            c1.typed::<ByteArrayType>().write_batch(&names, None, None)?;
-            c1.close()?;
-
-            rg.close()?;
-            writer.close()?;
-        }
-
-        let ds = crate::DataSource::new_parquet("rt".into(), path_str.clone()).await?;
-
-        let table = ds.tables.get("main").expect("main table present");
-        let id_col = table.columns.get("id").expect("id col");
-        let name_col = table.columns.get("name").expect("name col");
-        assert_eq!(id_col.col_type, crate::NormalizedType::Integer);
-        assert_eq!(name_col.col_type, crate::NormalizedType::Text);
-
-        let rows = ds
-            .get_all_records("main", &["id", "name"], false)
-            .await?;
-        assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0][0], crate::NormalizedValue::Integer(1));
-        assert_eq!(
-            rows[2][1],
-            crate::NormalizedValue::Text("carol".to_string())
-        );
-
-        let distinct = ds.get_distinct_values("main", "name").await?;
-        let mut sorted = distinct.clone();
-        sorted.sort();
-        assert_eq!(sorted, vec!["alice", "bob", "carol"]);
-
-        let _ = std::fs::remove_file(&path);
-        Ok(())
-    }
-
-    #[cfg(feature = "parquet")]
-    #[tokio::test]
-    async fn parquet_dispatch_recognises_suffix_and_scheme() -> anyhow::Result<()> {
-        use crate::{DataSourceInner, DataSource};
-        // new_any_without_discovery only constructs the source, it does not open the file.
-        let ds = DataSource::new_any_without_discovery(
-            "x".into(),
-            "some/path.parquet".into(),
-        )
-        .await?;
-        assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
-
-        let ds = DataSource::new_any_without_discovery(
-            "x".into(),
-            "parquet:///tmp/y.parquet".into(),
-        )
-        .await?;
-        assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
-        Ok(())
-    }
-
-    #[test]
-    fn delimiter_spec_parses_known_aliases() {
-        use crate::parse_delimiter_spec;
-        assert_eq!(parse_delimiter_spec(";"), Some(b';'));
-        assert_eq!(parse_delimiter_spec("\\t"), Some(b'\t'));
-        assert_eq!(parse_delimiter_spec("tab"), Some(b'\t'));
-        assert_eq!(parse_delimiter_spec("pipe"), Some(b'|'));
-        assert_eq!(parse_delimiter_spec("semicolon"), Some(b';'));
-        assert_eq!(parse_delimiter_spec(""), None);
-        assert_eq!(parse_delimiter_spec("two_chars"), None);
-    }
-
-    #[test]
-    fn csv_spec_url_encoded_delimiter_is_honoured() {
-        // Frontend encodes `;` as `%3B` via encodeURIComponent; backend must decode.
-        let src = crate::CSVSource::from_csv_spec("/nonexistent.csv?delimiter=%3B");
-        assert_eq!(src.delimiter, b';');
-        let src = crate::CSVSource::from_csv_spec("/nonexistent.csv?delimiter=tab");
-        assert_eq!(src.delimiter, b'\t');
-    }
-}
+#[cfg(feature = "postgres")]
+use sqlx::PgPool;
 
 #[cfg(feature = "parquet")]
 use parquet::basic::{ConvertedType, LogicalType, TimeUnit, Type as PhysicalType};
@@ -493,15 +93,29 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
 #[cfg(feature = "parquet")]
 use parquet::schema::types::Type as ParquetType;
-use sea_schema::postgres::discovery::SchemaDiscovery as PgDiscoverer;
-use sea_schema::sqlite::discovery::SchemaDiscovery as SqliteDiscoverer;
-use sqlx::types::chrono::{self, FixedOffset, NaiveDateTime};
-use std::collections::HashMap;
-use std::fmt::Display;
 #[cfg(feature = "parquet")]
 use std::fs::File;
-// use sea_schema::mysql::discoverer::SchemaDiscoverer as MySqlDiscoverer;
-use sqlx::{Column, PgPool, SqlitePool, TypeInfo};
+
+/// The connection-string forms *this build* accepts, which depends on which backend
+/// features are enabled. Used to make the "unsupported data source" error name the
+/// feature set rather than a fixed list the binary may not actually support.
+fn supported_connection_strings() -> String {
+    let forms: &[&str] = &[
+        #[cfg(feature = "postgres")]
+        "`postgres://`, `postgresql://`",
+        #[cfg(feature = "sqlite")]
+        "`sqlite:`",
+        #[cfg(feature = "csv")]
+        "`csv://` or a path ending in `.csv`",
+        #[cfg(feature = "parquet")]
+        "`parquet://` or a path ending in `.parquet`",
+    ];
+    if forms.is_empty() {
+        "nothing (this build enables no backend feature)".to_string()
+    } else {
+        forms.join(", ")
+    }
+}
 
 /// A connected data source (PostgreSQL, SQLite, or CSV) with discovered schema.
 ///
@@ -539,20 +153,23 @@ impl DataSource {
         })
     }
 
+    #[cfg(feature = "postgres")]
     pub async fn new_postgres(name: String, connection_string: String) -> anyhow::Result<Self> {
         Self::new(name, PgPool::connect(&connection_string).await?).await
     }
 
+    #[cfg(feature = "sqlite")]
     pub async fn new_sqlite(name: String, connection_string: String) -> anyhow::Result<Self> {
-        Self::new(name, SqlitePool::connect(&connection_string).await?).await
+        Self::new(name, SqliteSource::open(&connection_string)?).await
     }
 
+    #[cfg(feature = "csv")]
     pub async fn new_csv(name: String, path: String) -> anyhow::Result<Self> {
         let delimiter = detect_csv_delimiter(&path).unwrap_or(b',');
         Self::new(
             name,
             CSVSource {
-                path,
+                data: SourceData::Path(path),
                 delimiter,
                 has_headers: true,
             },
@@ -562,11 +179,61 @@ impl DataSource {
 
     #[cfg(feature = "parquet")]
     pub async fn new_parquet(name: String, path: String) -> anyhow::Result<Self> {
-        Self::new(name, ParquetSource { path }).await
+        Self::new(
+            name,
+            ParquetSource {
+                data: SourceData::Path(path),
+            },
+        )
+        .await
+    }
+
+    /// A CSV source over bytes already in memory, with its delimiter detected from the contents.
+    ///
+    /// The counterpart to [`DataSource::new_csv`] for contents with no path: a browser upload, a
+    /// `wasm32` build with no filesystem, or a file fetched over the network.
+    #[cfg(feature = "csv")]
+    pub async fn new_csv_bytes(
+        name: String,
+        bytes: impl Into<std::sync::Arc<[u8]>>,
+    ) -> anyhow::Result<Self> {
+        Self::new(name, CSVSource::from_bytes_autodetect(bytes)).await
+    }
+
+    /// A Parquet source over bytes already in memory.
+    #[cfg(feature = "parquet")]
+    pub async fn new_parquet_bytes(
+        name: String,
+        bytes: impl Into<std::sync::Arc<[u8]>>,
+    ) -> anyhow::Result<Self> {
+        Self::new(
+            name,
+            ParquetSource {
+                data: SourceData::Memory(bytes.into()),
+            },
+        )
+        .await
+    }
+
+    /// A multi-table source assembled from one file per table -- a directory of CSV or Parquet
+    /// files, or the members of an archive. Build the [`TableSetSource`] with
+    /// [`TableSetSource::insert_csv`]/[`insert_parquet`](TableSetSource::insert_parquet).
+    #[cfg(any(
+        feature = "sql",
+        feature = "sqlite",
+        feature = "csv",
+        feature = "parquet"
+    ))]
+    pub async fn new_table_set(name: String, tables: TableSetSource) -> anyhow::Result<Self> {
+        Self::new(name, tables).await
     }
 
     pub async fn new_any(name: String, connection_string: String) -> anyhow::Result<Self> {
-        Self::new(name, Self::inner_from_connection_string(&connection_string).await?).await
+        Self::new(
+            name,
+            Self::inner_from_connection_string(&connection_string).await?,
+        )
+        .await
     }
 
     /// Connect without schema discovery; only establishes the connection for querying.
@@ -575,62 +242,85 @@ impl DataSource {
         name: String,
         connection_string: String,
     ) -> anyhow::Result<Self> {
-        Self::new_without_discovery(name, Self::inner_from_connection_string(&connection_string).await?).await
+        Self::new_without_discovery(
+            name,
+            Self::inner_from_connection_string(&connection_string).await?,
+        )
+        .await
     }
 
     async fn inner_from_connection_string(
         connection_string: &str,
     ) -> anyhow::Result<DataSourceInner> {
+        #[cfg(feature = "postgres")]
         if connection_string.starts_with("postgres://")
             || connection_string.starts_with("postgresql://")
         {
             return Ok(PgPool::connect(connection_string).await?.into());
         }
+        #[cfg(feature = "sqlite")]
         if connection_string.starts_with("sqlite:") {
-            return Ok(SqlitePool::connect(connection_string).await?.into());
+            return Ok(SqliteSource::open(connection_string)?.into());
         }
+        #[cfg(feature = "csv")]
         if let Some(rest) = connection_string.strip_prefix("csv://") {
             return Ok(CSVSource::from_csv_spec(rest).into());
         }
         #[cfg(feature = "parquet")]
         if let Some(rest) = connection_string.strip_prefix("parquet://") {
             return Ok(ParquetSource {
-                path: rest.to_string(),
+                data: SourceData::Path(rest.to_string()),
             }
             .into());
         }
+        #[cfg(feature = "csv")]
         if connection_string.ends_with(".csv") {
             return Ok(CSVSource::from_path_autodetect(connection_string.to_string()).into());
         }
         #[cfg(feature = "parquet")]
         if connection_string.ends_with(".parquet") {
             return Ok(ParquetSource {
-                path: connection_string.to_string(),
+                data: SourceData::Path(connection_string.to_string()),
             }
             .into());
         }
-        #[cfg(feature = "parquet")]
         anyhow::bail!(
-            "Unsupported data source. Expected a connection string starting with \
-             `postgres://`, `postgresql://`, `sqlite:`, `csv://`, or `parquet://`, \
-             or a path ending in `.csv` or `.parquet`."
-        );
-        #[cfg(not(feature = "parquet"))]
-        anyhow::bail!(
-            "Unsupported data source. Expected a connection string starting with \
-             `postgres://`, `postgresql://`, `sqlite:`, or `csv://`, or a path \
-             ending in `.csv`. (Rebuild with the `parquet` feature to enable \
-             Parquet file support.)"
-        );
+            "Unsupported data source `{}`. This build of dbcon accepts: {}. \
+             Rebuild with the matching cargo feature to add a backend.",
+            connection_string,
+            supported_connection_strings(),
+        )
     }
 
-    pub async fn get_first_rows_of_all_tables(
+    /// Every column whose declared type dbcon could not map, as
+    /// `(table, column, declared type)`.
+    ///
+    /// Empty is the expected result. A non-empty result is the signal that a caller's
+    /// type-dependent behaviour (literal coercion, join-key comparison) will fall back to
+    /// dynamic decoding for those columns - see [`NormalizedType`]'s `Unknown` contract.
+    pub fn unknown_column_types(&self) -> Vec<(&str, &str, &str)> {
+        let mut out: Vec<(&str, &str, &str)> = self
+            .tables
+            .values()
+            .flat_map(|t| {
+                t.columns.values().filter_map(move |c| {
+                    c.col_type
+                        .unknown_type()
+                        .map(|raw| (t.name.as_str(), c.name.as_str(), raw))
+                })
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
+    pub fn get_first_rows_of_all_tables(
         &self,
         n: usize,
     ) -> anyhow::Result<HashMap<String, Vec<HashMap<String, String>>>> {
         let mut result = HashMap::new();
         for table in self.get_all_tables() {
-            let rows = self.get_first_rows(table, n).await?;
+            let rows = self.get_first_rows(table, n)?;
             result.insert(table.clone(), rows);
         }
         Ok(result)
@@ -640,62 +330,74 @@ impl DataSource {
         self.tables.keys()
     }
 
-    pub async fn get_all_records(
+    pub fn get_all_records(
         &self,
         table: &str,
         columns: &[&str],
         unique: bool,
     ) -> anyhow::Result<Vec<Vec<NormalizedValue>>> {
-        self.inner
-            .get_first_records(table, columns, None, unique)
-            .await
+        self.inner.get_first_records(table, columns, None, unique)
     }
 
-    pub async fn get_all_rows(&self, table: &str) -> anyhow::Result<Vec<HashMap<String, String>>> {
-        self.inner.get_first_rows(table, None).await
+    pub fn get_all_rows(&self, table: &str) -> anyhow::Result<Vec<HashMap<String, String>>> {
+        self.inner.get_first_rows(table, None)
     }
 
-    pub async fn get_first_rows(
+    pub fn get_first_rows(
         &self,
         table: &str,
         n: usize,
     ) -> anyhow::Result<Vec<HashMap<String, String>>> {
-        self.inner.get_first_rows(table, Some(n)).await
+        self.inner.get_first_rows(table, Some(n))
     }
 
-    /// Process rows one at a time by calling `handler` for each row.
-    /// Rows are streamed from the DB and never fully materialized in memory.
-    /// Optional `order_by` appends ORDER BY columns to the query.
-    pub async fn for_each_record(
+    /// Read `columns` from `table`, calling `handler` once per row. Rows are streamed and
+    /// never fully materialised. Optional `order_by` appends ORDER BY columns to the query.
+    ///
+    /// # Synchronous on purpose
+    ///
+    /// There is no await point between two rows, so `async` here would buy a caller nothing
+    /// while forcing every synchronous consumer to own a runtime and a bridge. See the crate
+    /// docs for the full boundary, and for what an async caller owes in return
+    /// (`spawn_blocking`).
+    ///
+    /// # The handler
+    ///
+    /// `handler` receives a slice **borrowed from a buffer the backend reuses for every row**,
+    /// so it must copy anything it wants to keep. Returning [`ControlFlow::Break`] abandons
+    /// the scan then and there -- the query stops, it is not merely ignored -- which is what
+    /// makes a `LIMIT`-shaped consumer, or one that has hit a fatal error, cost what it
+    /// should.
+    ///
+    /// An **empty** `columns` is a legitimate request for "one callback per row, no values",
+    /// not a request for every column: the handler gets a zero-length slice once per row.
+    pub fn scan(
         &self,
         table: &str,
         columns: &[&str],
         order_by: Option<&[&str]>,
-        handler: impl FnMut(Vec<NormalizedValue>),
+        handler: &mut dyn FnMut(&[NormalizedValue]) -> ControlFlow<()>,
     ) -> anyhow::Result<()> {
-        self.inner
-            .for_each_record(table, columns, order_by, handler)
-            .await
+        self.inner.scan(table, columns, order_by, handler)
     }
 
-    /// Run an arbitrary SQL query against the underlying SQL pool, streaming each row to
+    /// Run an arbitrary SQL query against the underlying SQL connection, streaming each row to
     /// `handler` as a `Vec<(column_name, NormalizedValue)>`. Errors out if this `DataSource`
     /// is backed by CSV or Parquet, which do not accept arbitrary SQL.
-    pub async fn for_each_row_sql(
+    ///
+    /// Synchronous, for the reasons on [`DataSource::scan`]. Unlike `scan` this hands over an
+    /// owned `Vec` per row, since the column names make a shared buffer pointless.
+    pub fn for_each_row_sql(
         &self,
         sql: &str,
-        handler: impl FnMut(Vec<(String, NormalizedValue)>),
+        handler: &mut dyn FnMut(Vec<(String, NormalizedValue)>),
     ) -> anyhow::Result<()> {
-        self.inner.for_each_row_sql(sql, handler).await
+        self.inner.for_each_row_sql(sql, handler)
     }
 
     /// Run SELECT DISTINCT on a single column. Useful for discovering attribute names.
-    pub async fn get_distinct_values(
-        &self,
-        table: &str,
-        column: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        self.inner.get_distinct_values(table, column).await
+    pub fn get_distinct_values(&self, table: &str, column: &str) -> anyhow::Result<Vec<String>> {
+        self.inner.get_distinct_values(table, column)
     }
 }
 
@@ -734,20 +436,138 @@ pub struct DataColumnInfo {
 
 #[derive(Debug)]
 pub enum DataSourceInner {
+    #[cfg(feature = "sql")]
     SQL(SQLPool),
+    #[cfg(feature = "sqlite")]
+    Sqlite(SqliteSource),
+    #[cfg(feature = "csv")]
     CSV(CSVSource),
     #[cfg(feature = "parquet")]
     Parquet(ParquetSource),
+    /// Several single-table sources presented as one multi-table source.
+    #[cfg(any(
+        feature = "sql",
+        feature = "sqlite",
+        feature = "csv",
+        feature = "parquet"
+    ))]
+    TableSet(TableSetSource),
 }
-impl<T> From<T> for DataSourceInner
-where
-    T: Into<SQLPool>,
-{
-    fn from(value: T) -> Self {
-        let value: SQLPool = value.into();
-        Self::SQL(value)
+/// Several single-table sources presented as one multi-table source: one file per table.
+///
+/// Exists because a schema spread over a directory of CSV or Parquet files is a real source
+/// shape that neither [`CSVSource`] nor [`ParquetSource`] can describe on its own -- each is
+/// one table under the fixed name `main`.
+///
+/// Table names are the caller's and are never inferred from a filename. A format whose
+/// manifest declares which file holds which table (the OCEL 2.0 bundle, say) would otherwise
+/// have its naming rules re-derived here, wrongly, from a path.
+#[cfg(any(
+    feature = "sql",
+    feature = "sqlite",
+    feature = "csv",
+    feature = "parquet"
+))]
+#[derive(Debug, Default)]
+pub struct TableSetSource {
+    members: HashMap<String, TableSetMember>,
+}
+
+/// One table of a [`TableSetSource`]: a source, and the name that source knows the table by.
+#[cfg(any(
+    feature = "sql",
+    feature = "sqlite",
+    feature = "csv",
+    feature = "parquet"
+))]
+#[derive(Debug)]
+struct TableSetMember {
+    inner: DataSourceInner,
+    /// What `inner` calls it, which is `main` for both single-file sources.
+    inner_table: String,
+}
+
+#[cfg(any(
+    feature = "sql",
+    feature = "sqlite",
+    feature = "csv",
+    feature = "parquet"
+))]
+impl TableSetSource {
+    /// Add `table`, backed by `inner`'s table `inner_table`. Replaces any table of that name.
+    pub fn insert(
+        &mut self,
+        table: impl Into<String>,
+        inner: impl Into<DataSourceInner>,
+        inner_table: impl Into<String>,
+    ) {
+        self.members.insert(
+            table.into(),
+            TableSetMember {
+                inner: inner.into(),
+                inner_table: inner_table.into(),
+            },
+        );
+    }
+
+    /// A CSV file as one table. Its delimiter is detected from the contents.
+    #[cfg(feature = "csv")]
+    pub fn insert_csv(&mut self, table: impl Into<String>, data: SourceData) {
+        let delimiter = detect_csv_delimiter_in(&data).unwrap_or(b',');
+        self.insert(
+            table,
+            CSVSource {
+                data,
+                delimiter,
+                has_headers: true,
+            },
+            CSV_TABLE_NAME,
+        );
+    }
+
+    /// A Parquet file as one table.
+    #[cfg(feature = "parquet")]
+    pub fn insert_parquet(&mut self, table: impl Into<String>, data: SourceData) {
+        self.insert(table, ParquetSource { data }, PARQUET_TABLE_NAME);
+    }
+
+    /// The table names, in no particular order.
+    pub fn table_names(&self) -> impl Iterator<Item = &str> {
+        self.members.keys().map(String::as_str)
+    }
+
+    fn member(&self, table: &str) -> anyhow::Result<&TableSetMember> {
+        self.members
+            .get(table)
+            .ok_or_else(|| anyhow::anyhow!("no table '{table}' in this source"))
     }
 }
+
+#[cfg(any(
+    feature = "sql",
+    feature = "sqlite",
+    feature = "csv",
+    feature = "parquet"
+))]
+impl From<TableSetSource> for DataSourceInner {
+    fn from(set: TableSetSource) -> Self {
+        Self::TableSet(set)
+    }
+}
+
+#[cfg(feature = "postgres")]
+impl From<PgPool> for DataSourceInner {
+    fn from(pool: PgPool) -> Self {
+        Self::SQL(pool.into())
+    }
+}
+#[cfg(feature = "sqlite")]
+impl From<SqliteSource> for DataSourceInner {
+    fn from(source: SqliteSource) -> Self {
+        Self::Sqlite(source)
+    }
+}
+#[cfg(feature = "csv")]
 impl From<CSVSource> for DataSourceInner {
     fn from(csv: CSVSource) -> Self {
         Self::CSV(csv)
@@ -760,7 +580,14 @@ impl From<ParquetSource> for DataSourceInner {
     }
 }
 
-/// Build a SELECT query string from columns, table, and optional ORDER BY
+/// Build a SELECT query string from columns, table, and optional ORDER BY.
+///
+/// An **empty** `columns` selects the constant `1`, because `SELECT  FROM "t"` is not SQL in
+/// any dialect. That gives the right row count and needs no backend-specific syntax, at the
+/// cost of one column the caller did not ask for; every caller therefore truncates each row
+/// to `columns.len()` before handing it on. Asking for no columns is a real request -- a
+/// mapping whose targets are all constants still needs one callback per row.
+#[cfg(any(feature = "sql", feature = "sqlite"))]
 fn build_select_query(
     columns: &[&str],
     table: &str,
@@ -777,19 +604,22 @@ fn build_select_query(
         col_str.push_str(col);
         col_str.push('"');
     }
+    if columns.is_empty() {
+        col_str.push('1');
+    }
     let distinct = if unique { "DISTINCT " } else { "" };
     let mut query = format!("SELECT {}{} FROM \"{}\"", distinct, col_str, table);
-    if let Some(order_cols) = order_by {
-        if !order_cols.is_empty() {
-            query.push_str(" ORDER BY ");
-            for (i, col) in order_cols.iter().enumerate() {
-                if i > 0 {
-                    query.push_str(", ");
-                }
-                query.push('"');
-                query.push_str(col);
-                query.push('"');
+    if let Some(order_cols) = order_by
+        && !order_cols.is_empty()
+    {
+        query.push_str(" ORDER BY ");
+        for (i, col) in order_cols.iter().enumerate() {
+            if i > 0 {
+                query.push_str(", ");
             }
+            query.push('"');
+            query.push_str(col);
+            query.push('"');
         }
     }
     if let Some(limit) = limit {
@@ -798,6 +628,43 @@ fn build_select_query(
     query
 }
 
+/// Drive `future` to completion from synchronous code, for the one backend that is really
+/// async.
+///
+/// A fresh current-thread runtime per call rather than a shared one: this runs once per
+/// row-reading call, never per row, and a shared current-thread runtime would serialise
+/// concurrent scans against each other for no gain.
+///
+/// # Being inside a runtime is an error, not a panic
+///
+/// `Runtime::block_on` panics when the *calling thread* is already inside any runtime's
+/// context. Detecting that and returning an error instead means an async caller who forgot
+/// `spawn_blocking` gets a message naming the fix, rather than a Tokio panic from inside a
+/// library they did not know was blocking.
+/// Drop the placeholder column [`build_select_query`] adds for an empty `columns` request.
+/// A no-op for every other request, since `len` is then the row's own width.
+#[cfg(feature = "sql")]
+fn truncated(mut row: Vec<NormalizedValue>, len: usize) -> Vec<NormalizedValue> {
+    row.truncate(len);
+    row
+}
+
+#[cfg(feature = "sql")]
+fn block_on<F: std::future::Future>(future: F) -> anyhow::Result<F::Output> {
+    if tokio::runtime::Handle::try_current().is_ok() {
+        anyhow::bail!(
+            "dbcon's row-reading API is synchronous, but this PostgreSQL source was read from \
+             a thread that is already inside a Tokio runtime, where blocking would panic. \
+             Wrap the call in `tokio::task::spawn_blocking`."
+        );
+    }
+    Ok(tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(future))
+}
+
+#[cfg(feature = "sql")]
 fn extract_row_column_value<'d, C, R, D: sqlx::Database>(
     row: &'d R,
     col: &'d C,
@@ -851,17 +718,19 @@ where
             }
         }
         _ => {
-            // Dynamic column type with no static SQL type (e.g. CASE WHEN expressions).
-            // Try bool first since `CASE WHEN ... THEN TRUE ELSE FALSE END` is common,
-            // then integer, float, string; first successful decode wins.
-            if let Ok(b) = row.try_get::<Option<bool>, _>(i) {
-                b.into()
-            } else if let Ok(n) = row.try_get::<Option<i64>, _>(i) {
+            // Dynamic column type with no static SQL type (e.g. `count(*)`, CASE WHEN).
+            // Integers are tried before bool: SQLite's decoder is permissive and will
+            // happily read any non-zero integer as `true`, which turned `count(*)` into
+            // `Boolean(true)`. PostgreSQL type-checks its decodes, so a genuine boolean
+            // expression still falls through to the bool arm there.
+            if let Ok(n) = row.try_get::<Option<i64>, _>(i) {
                 n.into()
             } else if let Ok(n) = row.try_get::<Option<i32>, _>(i) {
                 n.into()
             } else if let Ok(n) = row.try_get::<Option<f64>, _>(i) {
                 n.into()
+            } else if let Ok(b) = row.try_get::<Option<bool>, _>(i) {
+                b.into()
             } else if let Ok(s) = row.try_get::<Option<String>, _>(i) {
                 s.into()
             } else {
@@ -874,6 +743,7 @@ where
 
 /// Map a sqlx row to a `Vec<NormalizedValue>`, one per column.
 /// Columns that fail to decode yield [`NormalizedValue::Null`].
+#[cfg(feature = "sql")]
 fn rows_to_values<R, D>(row: R) -> Vec<NormalizedValue>
 where
     D: sqlx::Database,
@@ -896,6 +766,7 @@ where
 
 /// Map a sqlx row to `{column_name -> stringified value}`.
 /// Used by the preview/string-rows API for display purposes.
+#[cfg(feature = "sql")]
 fn row_to_named_strings<R, D>(row: R) -> HashMap<String, String>
 where
     D: sqlx::Database,
@@ -922,14 +793,50 @@ where
 impl DataSourceInner {
     pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
         match self {
+            // With no backend feature enabled `DataSourceInner` is uninhabited, so this
+            // is the only arm and it is unreachable. With any feature on it is cfg'd out.
+            #[cfg(not(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            )))]
+            _ => match *self {},
+            #[cfg(feature = "sql")]
             DataSourceInner::SQL(sql) => sql.get_tables().await,
+            #[cfg(feature = "sqlite")]
+            DataSourceInner::Sqlite(source) => discovery::sqlite::discover(source),
+            #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => csv.get_tables().await,
             #[cfg(feature = "parquet")]
             DataSourceInner::Parquet(p) => p.get_tables().await,
+            #[cfg(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            ))]
+            DataSourceInner::TableSet(set) => {
+                let mut tables = HashMap::new();
+                for (name, m) in &set.members {
+                    // Boxed because this recurses into `get_tables`, and an `async fn` cannot
+                    // name its own future type.
+                    let mut inner = Box::pin(m.inner.get_tables()).await?;
+                    let Some(mut info) = inner.remove(&m.inner_table) else {
+                        anyhow::bail!(
+                            "table '{name}' names '{}', which its source does not have",
+                            m.inner_table
+                        );
+                    };
+                    info.name.clone_from(name);
+                    tables.insert(name.clone(), info);
+                }
+                Ok(tables)
+            }
         }
     }
 
-    pub async fn get_first_records(
+    pub fn get_first_records(
         &self,
         table: &str,
         columns: &[&str],
@@ -937,24 +844,42 @@ impl DataSourceInner {
         unique: bool,
     ) -> anyhow::Result<Vec<Vec<NormalizedValue>>> {
         match self {
+            // With no backend feature enabled `DataSourceInner` is uninhabited, so this
+            // is the only arm and it is unreachable. With any feature on it is cfg'd out.
+            #[cfg(not(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            )))]
+            _ => match *self {},
+            #[cfg(feature = "sql")]
             DataSourceInner::SQL(sql) => {
                 let query = build_select_query(columns, table, None, limit, unique);
                 match sql {
+                    #[cfg(feature = "postgres")]
                     SQLPool::Postgres(pg_pool) => {
-                        let rows = sqlx::query(&query).fetch_all(pg_pool).await?;
-                        Ok(rows.into_iter().map(rows_to_values).collect())
-                    }
-                    SQLPool::Sqlite(sqlite_pool) => {
-                        let rows = sqlx::query(&query).fetch_all(sqlite_pool).await?;
-                        Ok(rows.into_iter().map(rows_to_values).collect())
+                        let rows = block_on(sqlx::query(&query).fetch_all(pg_pool))??;
+                        Ok(rows
+                            .into_iter()
+                            .map(|row| truncated(rows_to_values(row), columns.len()))
+                            .collect())
                     }
                 }
             }
+            #[cfg(feature = "sqlite")]
+            DataSourceInner::Sqlite(source) => {
+                let query = build_select_query(columns, table, None, limit, unique);
+                let mut rows = source.rows(&query, limit)?;
+                for row in &mut rows {
+                    row.truncate(columns.len());
+                }
+                Ok(rows)
+            }
+            #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
-                let mut rdr = csv::ReaderBuilder::new()
-                    .delimiter(csv.delimiter)
-                    .has_headers(csv.has_headers)
-                    .from_path(&csv.path)?;
+                let _ = (table, unique);
+                let mut rdr = csv.reader()?;
 
                 let headers = rdr.headers()?.clone();
                 let indices = columns
@@ -979,10 +904,10 @@ impl DataSourceInner {
                         })
                         .collect();
                     result.push(row);
-                    if let Some(limit) = limit {
-                        if result.len() >= limit {
-                            break;
-                        }
+                    if let Some(limit) = limit
+                        && result.len() >= limit
+                    {
+                        break;
                     }
                 }
                 Ok(result)
@@ -993,8 +918,7 @@ impl DataSourceInner {
                 let _ = unique;
                 let reader = p.open()?;
                 let schema = reader.metadata().file_metadata().schema();
-                let field_names: Vec<&str> =
-                    schema.get_fields().iter().map(|f| f.name()).collect();
+                let field_names: Vec<&str> = schema.get_fields().iter().map(|f| f.name()).collect();
                 let ts_units: Vec<Option<TimeUnit>> = schema
                     .get_fields()
                     .iter()
@@ -1003,16 +927,16 @@ impl DataSourceInner {
                 let indices: Vec<usize> = columns
                     .iter()
                     .map(|col| {
-                        field_names.iter().position(|h| h == col).ok_or_else(|| {
-                            anyhow::anyhow!("Column '{}' not found in Parquet", col)
-                        })
+                        field_names
+                            .iter()
+                            .position(|h| h == col)
+                            .ok_or_else(|| anyhow::anyhow!("Column '{}' not found in Parquet", col))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut result: Vec<Vec<NormalizedValue>> = Vec::new();
                 for row in reader.get_row_iter(None)? {
                     let row = row?;
-                    let fields: Vec<&Field> =
-                        row.get_column_iter().map(|(_, f)| f).collect();
+                    let fields: Vec<&Field> = row.get_column_iter().map(|(_, f)| f).collect();
                     let values: Vec<NormalizedValue> = indices
                         .iter()
                         .map(|&i| {
@@ -1023,68 +947,90 @@ impl DataSourceInner {
                         })
                         .collect();
                     result.push(values);
-                    if let Some(limit) = limit {
-                        if result.len() >= limit {
-                            break;
-                        }
+                    if let Some(limit) = limit
+                        && result.len() >= limit
+                    {
+                        break;
                     }
                 }
                 let _ = table;
                 Ok(result)
             }
+            #[cfg(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            ))]
+            DataSourceInner::TableSet(set) => {
+                let m = set.member(table)?;
+                m.inner
+                    .get_first_records(&m.inner_table, columns, limit, unique)
+            }
         }
     }
 
-    /// Process rows one at a time by calling `handler` for each row.
-    /// Rows are streamed from the DB and never fully materialized in memory.
-    /// Optional `order_by` appends ORDER BY columns to the query.
-    pub async fn for_each_record(
+    /// See [`DataSource::scan`], which this backs.
+    pub fn scan(
         &self,
         table: &str,
         columns: &[&str],
         order_by: Option<&[&str]>,
-        mut handler: impl FnMut(Vec<NormalizedValue>),
+        handler: &mut dyn FnMut(&[NormalizedValue]) -> ControlFlow<()>,
     ) -> anyhow::Result<()> {
-        use futures::StreamExt;
+        #[cfg(any(feature = "sql", feature = "sqlite"))]
         let query = build_select_query(columns, table, order_by, None, false);
         match self {
+            // With no backend feature enabled `DataSourceInner` is uninhabited, so this
+            // is the only arm and it is unreachable. With any feature on it is cfg'd out.
+            #[cfg(not(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            )))]
+            _ => match *self {},
+            #[cfg(feature = "sql")]
             DataSourceInner::SQL(sql) => match sql {
+                #[cfg(feature = "postgres")]
                 SQLPool::Postgres(pool) => {
-                    let mut stream = sqlx::query(&query).fetch(pool);
-                    while let Some(result) = stream.next().await {
-                        let row = result?;
-                        let values = row
-                            .columns()
-                            .iter()
-                            .map(|col| extract_row_column_value(&row, col).unwrap_or_default())
-                            .collect();
-                        handler(values);
-                    }
-                }
-                SQLPool::Sqlite(pool) => {
-                    let mut stream = sqlx::query(&query).fetch(pool);
-                    while let Some(result) = stream.next().await {
-                        let row = result?;
-                        let values = row
-                            .columns()
-                            .iter()
-                            .map(|col| extract_row_column_value(&row, col).unwrap_or_default())
-                            .collect();
-                        handler(values);
-                    }
+                    use futures::StreamExt;
+                    // One `block_on` for the whole scan, not one per row: the future below
+                    // owns the row loop, so the calling thread blocks once and the handler
+                    // is called from inside it, synchronously.
+                    block_on(async {
+                        let mut buffer: Vec<NormalizedValue> = Vec::new();
+                        let mut stream = sqlx::query(&query).fetch(pool);
+                        while let Some(result) = stream.next().await {
+                            let row = result?;
+                            buffer.clear();
+                            buffer.extend(row.columns().iter().map(|col| {
+                                extract_row_column_value(&row, col).unwrap_or_default()
+                            }));
+                            buffer.truncate(columns.len());
+                            if handler(&buffer).is_break() {
+                                break;
+                            }
+                        }
+                        Ok::<_, anyhow::Error>(())
+                    })??;
                 }
             },
+            #[cfg(feature = "sqlite")]
+            DataSourceInner::Sqlite(source) => {
+                let want = columns.len();
+                source.for_each(&query, &mut |row| handler(&row[..want]))?;
+            }
+            #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
+                let _ = table;
                 if order_by.is_some_and(|o| !o.is_empty()) {
                     eprintln!(
                         "[dbcon] warning: order_by ignored for CSV source '{}': CSV does not support ordered reads",
-                        csv.path
+                        csv.data.describe()
                     );
                 }
-                let mut rdr = csv::ReaderBuilder::new()
-                    .delimiter(csv.delimiter)
-                    .has_headers(csv.has_headers)
-                    .from_path(&csv.path)?;
+                let mut rdr = csv.reader()?;
                 let headers = rdr.headers()?.clone();
                 let indices: Vec<usize> = columns
                     .iter()
@@ -1095,32 +1041,32 @@ impl DataSourceInner {
                             .ok_or_else(|| anyhow::anyhow!("Column '{}' not found in CSV", col))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
+                let mut buffer = vec![NormalizedValue::Null; indices.len()];
                 for record in rdr.into_records() {
                     let record = record?;
-                    let values = indices
-                        .iter()
-                        .map(|&i| {
-                            record
-                                .get(i)
-                                .map(|v| NormalizedValue::Text(v.to_string()))
-                                .unwrap_or_default()
-                        })
-                        .collect();
-                    handler(values);
+                    for (slot, &i) in buffer.iter_mut().zip(&indices) {
+                        *slot = record
+                            .get(i)
+                            .map(|v| NormalizedValue::Text(v.to_string()))
+                            .unwrap_or_default();
+                    }
+                    if handler(&buffer).is_break() {
+                        break;
+                    }
                 }
             }
             #[cfg(feature = "parquet")]
             DataSourceInner::Parquet(p) => {
+                let _ = table;
                 if order_by.is_some_and(|o| !o.is_empty()) {
                     eprintln!(
                         "[dbcon] warning: order_by ignored for Parquet source '{}': Parquet does not support ordered reads",
-                        p.path
+                        p.data.describe()
                     );
                 }
                 let reader = p.open()?;
                 let schema = reader.metadata().file_metadata().schema();
-                let field_names: Vec<&str> =
-                    schema.get_fields().iter().map(|f| f.name()).collect();
+                let field_names: Vec<&str> = schema.get_fields().iter().map(|f| f.name()).collect();
                 let ts_units: Vec<Option<TimeUnit>> = schema
                     .get_fields()
                     .iter()
@@ -1129,26 +1075,36 @@ impl DataSourceInner {
                 let indices: Vec<usize> = columns
                     .iter()
                     .map(|col| {
-                        field_names.iter().position(|h| h == col).ok_or_else(|| {
-                            anyhow::anyhow!("Column '{}' not found in Parquet", col)
-                        })
+                        field_names
+                            .iter()
+                            .position(|h| h == col)
+                            .ok_or_else(|| anyhow::anyhow!("Column '{}' not found in Parquet", col))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
+                let mut buffer = vec![NormalizedValue::Null; indices.len()];
                 for row in reader.get_row_iter(None)? {
                     let row = row?;
-                    let fields: Vec<&Field> =
-                        row.get_column_iter().map(|(_, f)| f).collect();
-                    let values: Vec<NormalizedValue> = indices
-                        .iter()
-                        .map(|&i| {
-                            fields
-                                .get(i)
-                                .map(|f| parquet_field_to_value_hinted(f, ts_units[i]))
-                                .unwrap_or_default()
-                        })
-                        .collect();
-                    handler(values);
+                    let fields: Vec<&Field> = row.get_column_iter().map(|(_, f)| f).collect();
+                    for (slot, &i) in buffer.iter_mut().zip(&indices) {
+                        *slot = fields
+                            .get(i)
+                            .map(|f| parquet_field_to_value_hinted(f, ts_units[i]))
+                            .unwrap_or_default();
+                    }
+                    if handler(&buffer).is_break() {
+                        break;
+                    }
                 }
+            }
+            #[cfg(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            ))]
+            DataSourceInner::TableSet(set) => {
+                let m = set.member(table)?;
+                m.inner.scan(&m.inner_table, columns, order_by, handler)?;
             }
         }
         Ok(())
@@ -1156,79 +1112,93 @@ impl DataSourceInner {
 
     /// Stream rows for an arbitrary SQL query. SQL backends only; CSV and Parquet
     /// return an error. See [`DataSource::for_each_row_sql`] for the public wrapper.
-    pub async fn for_each_row_sql(
+    pub fn for_each_row_sql(
         &self,
         sql: &str,
-        mut handler: impl FnMut(Vec<(String, NormalizedValue)>),
+        handler: &mut dyn FnMut(Vec<(String, NormalizedValue)>),
     ) -> anyhow::Result<()> {
-        use futures::StreamExt;
         match self {
-            DataSourceInner::SQL(sql_pool) => match sql_pool {
-                SQLPool::Postgres(pool) => {
-                    let mut stream = sqlx::query(sql).fetch(pool);
-                    while let Some(result) = stream.next().await {
-                        let row = result?;
-                        let named: Vec<(String, NormalizedValue)> = row
-                            .columns()
-                            .iter()
-                            .map(|col| {
-                                (
-                                    col.name().to_string(),
-                                    extract_row_column_value(&row, col).unwrap_or_default(),
-                                )
-                            })
-                            .collect();
-                        handler(named);
+            // With no backend feature enabled `DataSourceInner` is uninhabited, so this
+            // is the only arm and it is unreachable. With any feature on it is cfg'd out.
+            #[cfg(not(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            )))]
+            _ => match *self {},
+            #[cfg(feature = "sql")]
+            DataSourceInner::SQL(sql_pool) => {
+                match sql_pool {
+                    #[cfg(feature = "postgres")]
+                    SQLPool::Postgres(pool) => {
+                        use futures::StreamExt;
+                        block_on(async {
+                            let mut stream = sqlx::query(sql).fetch(pool);
+                            while let Some(result) = stream.next().await {
+                                let row = result?;
+                                let named: Vec<(String, NormalizedValue)> = row
+                                    .columns()
+                                    .iter()
+                                    .map(|col| {
+                                        (
+                                            col.name().to_string(),
+                                            extract_row_column_value(&row, col).unwrap_or_default(),
+                                        )
+                                    })
+                                    .collect();
+                                handler(named);
+                            }
+                            Ok::<_, anyhow::Error>(())
+                        })??;
                     }
                 }
-                SQLPool::Sqlite(pool) => {
-                    let mut stream = sqlx::query(sql).fetch(pool);
-                    while let Some(result) = stream.next().await {
-                        let row = result?;
-                        let named: Vec<(String, NormalizedValue)> = row
-                            .columns()
-                            .iter()
-                            .map(|col| {
-                                (
-                                    col.name().to_string(),
-                                    extract_row_column_value(&row, col).unwrap_or_default(),
-                                )
-                            })
-                            .collect();
-                        handler(named);
-                    }
-                }
-            },
+                Ok(())
+            }
+            #[cfg(feature = "sqlite")]
+            DataSourceInner::Sqlite(source) => source.for_each_named(sql, handler),
+            #[cfg(feature = "csv")]
             DataSourceInner::CSV(_) => {
-                anyhow::bail!("for_each_row_sql is not supported for CSV data sources");
+                let _ = (sql, &mut *handler);
+                anyhow::bail!("for_each_row_sql is not supported for CSV data sources")
             }
             #[cfg(feature = "parquet")]
             DataSourceInner::Parquet(_) => {
-                anyhow::bail!("for_each_row_sql is not supported for Parquet data sources");
+                let _ = (sql, &mut *handler);
+                anyhow::bail!("for_each_row_sql is not supported for Parquet data sources")
+            }
+            #[cfg(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            ))]
+            DataSourceInner::TableSet(_) => {
+                let _ = (sql, &mut *handler);
+                anyhow::bail!("for_each_row_sql is not supported for file-backed data sources")
             }
         }
-        Ok(())
     }
 
     /// Get distinct values of a single column
-    pub async fn get_distinct_values(
-        &self,
-        table: &str,
-        column: &str,
-    ) -> anyhow::Result<Vec<String>> {
+    pub fn get_distinct_values(&self, table: &str, column: &str) -> anyhow::Result<Vec<String>> {
         match self {
+            // With no backend feature enabled `DataSourceInner` is uninhabited, so this
+            // is the only arm and it is unreachable. With any feature on it is cfg'd out.
+            #[cfg(not(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            )))]
+            _ => match *self {},
+            #[cfg(feature = "sql")]
             DataSourceInner::SQL(sql) => {
                 let query = format!("SELECT DISTINCT \"{}\" FROM \"{}\"", column, table);
                 match sql {
+                    #[cfg(feature = "postgres")]
                     SQLPool::Postgres(pool) => {
-                        let rows = sqlx::query(&query).fetch_all(pool).await?;
-                        Ok(rows
-                            .iter()
-                            .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
-                            .collect())
-                    }
-                    SQLPool::Sqlite(pool) => {
-                        let rows = sqlx::query(&query).fetch_all(pool).await?;
+                        let rows = block_on(sqlx::query(&query).fetch_all(pool))??;
                         Ok(rows
                             .iter()
                             .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
@@ -1236,11 +1206,15 @@ impl DataSourceInner {
                     }
                 }
             }
+            #[cfg(feature = "sqlite")]
+            DataSourceInner::Sqlite(source) => source.text_column(&format!(
+                "SELECT DISTINCT \"{}\" FROM \"{}\"",
+                column, table
+            )),
+            #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
-                let mut rdr = csv::ReaderBuilder::new()
-                    .delimiter(csv.delimiter)
-                    .has_headers(csv.has_headers)
-                    .from_path(&csv.path)?;
+                let _ = table;
+                let mut rdr = csv.reader()?;
                 let headers = rdr.headers()?.clone();
                 let idx = headers
                     .iter()
@@ -1250,10 +1224,11 @@ impl DataSourceInner {
                 let mut seen = std::collections::HashSet::new();
                 for record in rdr.into_records() {
                     let record = record?;
-                    if let Some(v) = record.get(idx) {
-                        if !v.is_empty() && seen.insert(v.to_string()) {
-                            values.push(v.to_string());
-                        }
+                    if let Some(v) = record.get(idx)
+                        && !v.is_empty()
+                        && seen.insert(v.to_string())
+                    {
+                        values.push(v.to_string());
                     }
                 }
                 Ok(values)
@@ -1285,36 +1260,53 @@ impl DataSourceInner {
                 let _ = table;
                 Ok(values)
             }
+            #[cfg(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            ))]
+            DataSourceInner::TableSet(set) => {
+                let m = set.member(table)?;
+                m.inner.get_distinct_values(&m.inner_table, column)
+            }
         }
     }
 
-    pub async fn get_first_rows(
+    pub fn get_first_rows(
         &self,
         table: &str,
         limit: Option<usize>,
     ) -> anyhow::Result<Vec<HashMap<String, String>>> {
+        #[cfg(any(feature = "sql", feature = "sqlite"))]
+        let select_all = match limit {
+            Some(n) => format!("SELECT * FROM \"{}\" LIMIT {}", table, n),
+            None => format!("SELECT * FROM \"{}\"", table),
+        };
         match self {
-            DataSourceInner::SQL(sql) => {
-                let query = match limit {
-                    Some(n) => format!("SELECT * FROM \"{}\" LIMIT {}", table, n),
-                    None => format!("SELECT * FROM \"{}\"", table),
-                };
-                match sql {
-                    SQLPool::Postgres(pg_pool) => {
-                        let rows = sqlx::query(&query).fetch_all(pg_pool).await?;
-                        Ok(rows.into_iter().map(row_to_named_strings).collect())
-                    }
-                    SQLPool::Sqlite(sqlite_pool) => {
-                        let rows = sqlx::query(&query).fetch_all(sqlite_pool).await?;
-                        Ok(rows.into_iter().map(row_to_named_strings).collect())
-                    }
+            // With no backend feature enabled `DataSourceInner` is uninhabited, so this
+            // is the only arm and it is unreachable. With any feature on it is cfg'd out.
+            #[cfg(not(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            )))]
+            _ => match *self {},
+            #[cfg(feature = "sql")]
+            DataSourceInner::SQL(sql) => match sql {
+                #[cfg(feature = "postgres")]
+                SQLPool::Postgres(pg_pool) => {
+                    let rows = block_on(sqlx::query(&select_all).fetch_all(pg_pool))??;
+                    Ok(rows.into_iter().map(row_to_named_strings).collect())
                 }
-            }
+            },
+            #[cfg(feature = "sqlite")]
+            DataSourceInner::Sqlite(source) => source.named_string_rows(&select_all, limit),
+            #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
-                let mut rdr = csv::ReaderBuilder::new()
-                    .delimiter(csv.delimiter)
-                    .has_headers(csv.has_headers)
-                    .from_path(&csv.path)?;
+                let _ = table;
+                let mut rdr = csv.reader()?;
 
                 let headers = rdr.headers()?.clone();
                 let mut result = Vec::new();
@@ -1326,10 +1318,10 @@ impl DataSourceInner {
                         .map(|(h, v)| (h.to_string(), v.to_string()))
                         .collect();
                     result.push(row);
-                    if let Some(limit) = limit {
-                        if result.len() >= limit {
-                            break;
-                        }
+                    if let Some(limit) = limit
+                        && result.len() >= limit
+                    {
+                        break;
                     }
                 }
                 Ok(result)
@@ -1357,50 +1349,118 @@ impl DataSourceInner {
                         })
                         .collect();
                     result.push(named);
-                    if let Some(limit) = limit {
-                        if result.len() >= limit {
-                            break;
-                        }
+                    if let Some(limit) = limit
+                        && result.len() >= limit
+                    {
+                        break;
                     }
                 }
                 let _ = table;
                 Ok(result)
             }
+            #[cfg(any(
+                feature = "sql",
+                feature = "sqlite",
+                feature = "csv",
+                feature = "parquet"
+            ))]
+            DataSourceInner::TableSet(set) => {
+                let m = set.member(table)?;
+                m.inner.get_first_rows(&m.inner_table, limit)
+            }
         }
     }
 }
 
+#[cfg(feature = "csv")]
 /// A CSV file treated as a single-table data source.
 #[derive(Debug)]
 pub struct CSVSource {
-    pub path: String,
+    pub data: SourceData,
     pub delimiter: u8,
     pub has_headers: bool,
 }
 
 /// The table name used for a [`CSVSource`]. A CSV file is exposed as a single table
 /// under this name, since CSVs don't carry multi-table schema information.
+#[cfg(feature = "csv")]
 pub const CSV_TABLE_NAME: &str = "main";
 
+/// Where a file-backed source's bytes live.
+///
+/// `Memory` exists because a path is not always available: a browser `File`, a `wasm32` build with
+/// no filesystem, or bytes that arrived over a network all have contents but no name to open.
+///
+/// Owned and cheap to clone rather than a reader, because both file-backed sources re-read from
+/// the start on every operation (schema, scan, distinct values, preview). A one-shot
+/// `impl Read` cannot serve that; an `Arc<[u8]>` can, at one allocation.
+#[cfg(any(feature = "csv", feature = "parquet"))]
+#[derive(Debug, Clone)]
+pub enum SourceData {
+    /// A file on disk, opened afresh for each read.
+    Path(String),
+    /// Bytes held in memory, shared between reads.
+    Memory(std::sync::Arc<[u8]>),
+}
+
+#[cfg(any(feature = "csv", feature = "parquet"))]
+impl SourceData {
+    /// The path, when there is one. `None` for in-memory bytes, which have no name to report.
+    pub fn path(&self) -> Option<&str> {
+        match self {
+            SourceData::Path(p) => Some(p),
+            SourceData::Memory(_) => None,
+        }
+    }
+
+    /// A fresh reader over the contents.
+    pub fn reader(&self) -> std::io::Result<Box<dyn std::io::Read + Send + '_>> {
+        match self {
+            SourceData::Path(p) => Ok(Box::new(std::io::BufReader::new(std::fs::File::open(p)?))),
+            SourceData::Memory(bytes) => Ok(Box::new(std::io::Cursor::new(&bytes[..]))),
+        }
+    }
+
+    /// How this source names itself in a message.
+    pub fn describe(&self) -> String {
+        match self {
+            SourceData::Path(p) => p.clone(),
+            SourceData::Memory(bytes) => format!("<{} bytes in memory>", bytes.len()),
+        }
+    }
+}
+
+impl From<String> for SourceData {
+    fn from(path: String) -> Self {
+        SourceData::Path(path)
+    }
+}
+
 /// Candidate CSV delimiters tried by [`detect_csv_delimiter`], in order of preference.
+#[cfg(feature = "csv")]
 const CSV_DELIMITER_CANDIDATES: &[u8] = b",;\t|";
 
 /// Heuristically detect the delimiter of a CSV file by parsing its first few rows
 /// with each candidate delimiter and picking the one that yields the most columns
 /// with a consistent column count across rows. Returns `None` if the file cannot
 /// be opened or no candidate produces more than one column.
+#[cfg(feature = "csv")]
 pub fn detect_csv_delimiter(path: &str) -> Option<u8> {
+    detect_csv_delimiter_in(&SourceData::Path(path.to_string()))
+}
+
+/// [`detect_csv_delimiter`], for contents that may not be on disk.
+#[cfg(feature = "csv")]
+pub fn detect_csv_delimiter_in(data: &SourceData) -> Option<u8> {
     const SAMPLE_ROWS: usize = 8;
     let mut best: Option<(u8, usize)> = None;
     for &delim in CSV_DELIMITER_CANDIDATES {
-        let Ok(mut rdr) = csv::ReaderBuilder::new()
+        let Ok(reader) = data.reader() else { continue };
+        let mut rdr = csv::ReaderBuilder::new()
             .delimiter(delim)
             .has_headers(false)
             .flexible(true)
-            .from_path(path)
-        else {
-            continue;
-        };
+            .from_reader(reader);
         let counts: Vec<usize> = rdr
             .records()
             .take(SAMPLE_ROWS)
@@ -1425,13 +1485,51 @@ pub fn detect_csv_delimiter(path: &str) -> Option<u8> {
     best.map(|(d, _)| d)
 }
 
+#[cfg(feature = "csv")]
 impl CSVSource {
     /// Build a [`CSVSource`] for `path`, auto-detecting the delimiter.
     /// Falls back to `,` if detection fails.
-    pub fn from_path_autodetect(path: String) -> Self {
-        let delimiter = detect_csv_delimiter(&path).unwrap_or(b',');
+    /// A reader over this CSV, configured with its delimiter and header setting.
+    ///
+    /// Every read builds a fresh one: `csv::Reader` consumes its input, and a source is read
+    /// several times over its life (schema, scan, distinct values, preview).
+    pub fn reader(&self) -> anyhow::Result<csv::Reader<Box<dyn std::io::Read + Send + '_>>> {
+        Ok(csv::ReaderBuilder::new()
+            .delimiter(self.delimiter)
+            .has_headers(self.has_headers)
+            .flexible(true)
+            .from_reader(self.data.reader()?))
+    }
+
+    /// A CSV held in memory, with its delimiter detected from the contents.
+    pub fn from_bytes_autodetect(bytes: impl Into<std::sync::Arc<[u8]>>) -> Self {
+        let data = SourceData::Memory(bytes.into());
+        let delimiter = detect_csv_delimiter_in(&data).unwrap_or(b',');
         Self {
-            path,
+            data,
+            delimiter,
+            has_headers: true,
+        }
+    }
+
+    /// A CSV held in memory, with an explicit dialect.
+    pub fn from_bytes(
+        bytes: impl Into<std::sync::Arc<[u8]>>,
+        delimiter: u8,
+        has_headers: bool,
+    ) -> Self {
+        Self {
+            data: SourceData::Memory(bytes.into()),
+            delimiter,
+            has_headers,
+        }
+    }
+
+    pub fn from_path_autodetect(path: String) -> Self {
+        let data = SourceData::Path(path);
+        let delimiter = detect_csv_delimiter_in(&data).unwrap_or(b',');
+        Self {
+            data,
             delimiter,
             has_headers: true,
         }
@@ -1444,8 +1542,8 @@ impl CSVSource {
     /// `pipe`, `semicolon`, or `comma`. When no override is given, the
     /// delimiter is auto-detected via [`detect_csv_delimiter`].
     pub fn from_csv_spec(rest: &str) -> Self {
-        let (path, query) = match rest.find('?') {
-            Some(i) => (&rest[..i], Some(&rest[i + 1..])),
+        let (path, query) = match rest.split_once('?') {
+            Some((path, query)) => (path, Some(query)),
             None => (rest, None),
         };
         let override_delim = query.and_then(parse_csv_query_delimiter);
@@ -1453,18 +1551,17 @@ impl CSVSource {
             .or_else(|| detect_csv_delimiter(path))
             .unwrap_or(b',');
         Self {
-            path: path.to_string(),
+            data: SourceData::Path(path.to_string()),
             delimiter,
             has_headers: true,
         }
     }
 }
 
+#[cfg(feature = "csv")]
 fn parse_csv_query_delimiter(query: &str) -> Option<u8> {
     for pair in query.split('&') {
-        let mut parts = pair.splitn(2, '=');
-        let key = parts.next()?;
-        let value = parts.next()?;
+        let (key, value) = pair.split_once('=')?;
         if key == "delimiter" {
             let decoded = percent_decode(value);
             return parse_delimiter_spec(&decoded);
@@ -1475,6 +1572,7 @@ fn parse_csv_query_delimiter(query: &str) -> Option<u8> {
 
 /// Decode `%XX` hex escapes in a URL-encoded string. Returns the original string
 /// on any malformed escape. We only need the minimal subset for delimiter values.
+#[cfg(feature = "csv")]
 fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -1497,6 +1595,7 @@ fn percent_decode(s: &str) -> String {
 
 /// Parse a human-friendly delimiter spec (`,`, `;`, `tab`, `\t`, `pipe`, etc.)
 /// into a single byte. Returns `None` for multi-byte or unrecognised values.
+#[cfg(feature = "csv")]
 pub fn parse_delimiter_spec(spec: &str) -> Option<u8> {
     match spec {
         "" => None,
@@ -1509,14 +1608,12 @@ pub fn parse_delimiter_spec(spec: &str) -> Option<u8> {
     }
 }
 
+#[cfg(feature = "csv")]
 impl CSVSource {
     /// Read the CSV header and build a single-table schema under [`CSV_TABLE_NAME`].
     /// All columns are reported as nullable text since CSV carries no type information.
     pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
-        let mut rdr = csv::ReaderBuilder::new()
-            .delimiter(self.delimiter)
-            .has_headers(self.has_headers)
-            .from_path(&self.path)?;
+        let mut rdr = self.reader()?;
 
         let headers = rdr.headers()?.clone();
         let columns = headers
@@ -1555,7 +1652,7 @@ impl CSVSource {
 #[cfg(feature = "parquet")]
 #[derive(Debug)]
 pub struct ParquetSource {
-    pub path: String,
+    pub data: SourceData,
 }
 
 /// Table name under which a [`ParquetSource`] exposes its single table.
@@ -1564,9 +1661,35 @@ pub const PARQUET_TABLE_NAME: &str = "main";
 
 #[cfg(feature = "parquet")]
 impl ParquetSource {
-    fn open(&self) -> anyhow::Result<SerializedFileReader<File>> {
-        let file = File::open(&self.path)?;
-        Ok(SerializedFileReader::new(file)?)
+    /// A Parquet file on disk.
+    pub fn from_path(path: impl Into<String>) -> Self {
+        Self {
+            data: SourceData::Path(path.into()),
+        }
+    }
+
+    /// A Parquet file held in memory.
+    pub fn from_bytes(bytes: impl Into<std::sync::Arc<[u8]>>) -> Self {
+        Self {
+            data: SourceData::Memory(bytes.into()),
+        }
+    }
+
+    /// A reader over the file's contents, from disk or from memory.
+    ///
+    /// Boxed because the two are different types: `SerializedFileReader` is generic over its
+    /// `ChunkReader`, and `parquet` itself passes `Box<dyn FileReader>` around, so this costs
+    /// nothing the crate was not already paying.
+    fn open(&self) -> anyhow::Result<Box<dyn FileReader>> {
+        match &self.data {
+            SourceData::Path(path) => Ok(Box::new(SerializedFileReader::new(File::open(path)?)?)),
+            // `bytes::Bytes` implements `ChunkReader`, so in-memory parquet needs no temp file.
+            // `bytes::Bytes` is what `parquet` implements `ChunkReader` for, so in-memory
+            // parquet needs no temporary file.
+            SourceData::Memory(bytes) => Ok(Box::new(SerializedFileReader::new(
+                bytes::Bytes::copy_from_slice(bytes),
+            )?)),
+        }
     }
 
     /// Build a single-table entry under [`PARQUET_TABLE_NAME`], one column per top-level
@@ -1786,146 +1909,165 @@ fn parquet_field_to_value(field: &Field) -> NormalizedValue {
     }
 }
 
+/// The sqlx-backed pools. SQLite is deliberately absent -- it goes through
+/// [`SqliteSource`] and `rusqlite`; see [`mod@sqlite`].
+#[cfg(feature = "sql")]
 #[derive(Debug)]
 pub enum SQLPool {
+    #[cfg(feature = "postgres")]
     Postgres(PgPool),
-    Sqlite(SqlitePool),
 }
 
+#[cfg(feature = "postgres")]
 impl From<PgPool> for SQLPool {
     fn from(pool: PgPool) -> Self {
         Self::Postgres(pool)
     }
 }
-impl From<SqlitePool> for SQLPool {
-    fn from(pool: SqlitePool) -> Self {
-        Self::Sqlite(pool)
-    }
-}
 
+#[cfg(feature = "sql")]
 impl SQLPool {
+    /// Discover the full schema of this connection.
+    ///
+    /// Delegates to the per-dialect catalog queries in [`crate::discovery`]; this crate
+    /// owns those queries outright, so adding a backend does not depend on a third party
+    /// having written a discoverer for it.
     pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
         match self {
-            SQLPool::Postgres(pg_pool) => {
-                let discoverer = PgDiscoverer::new(pg_pool.clone(), "public");
-                let schema = discoverer.discover().await?;
-
-                let tables = schema
-                    .tables
-                    .into_iter()
-                    .map(|table| {
-                        let columns = table
-                            .columns
-                            .into_iter()
-                            .map(|col| {
-                                (
-                                    col.name.clone(),
-                                    DataColumnInfo {
-                                        name: col.name,
-                                        col_type: NormalizedType::from(&col.col_type),
-                                        is_nullable: col.not_null.is_none(),
-                                    },
-                                )
-                            })
-                            .collect();
-
-                        (
-                            table.info.name.clone(),
-                            DataTableInfo {
-                                name: table.info.name,
-                                columns,
-                                primary_keys: table
-                                    .primary_key_constraints
-                                    .into_iter()
-                                    .map(|c| PrimaryKey {
-                                        name: c.name,
-                                        columns: c.columns,
-                                    })
-                                    .collect(),
-                                foreign_keys: table
-                                    .reference_constraints
-                                    .into_iter()
-                                    .map(|c| ForeignKey {
-                                        name: c.name,
-                                        from_columns: c.columns,
-                                        to_table: c.table,
-                                        to_columns: c.foreign_columns,
-                                    })
-                                    .collect(),
-                            },
-                        )
-                    })
-                    .collect();
-
-                Ok(tables)
-            }
-            SQLPool::Sqlite(sqlite_pool) => {
-                let discoverer = SqliteDiscoverer::new(sqlite_pool.clone());
-                let schema = discoverer.discover().await?;
-
-                let tables = schema
-                    .tables
-                    .into_iter()
-                    .map(|table| {
-                        let mut primary_key_columns = Vec::new();
-                        let columns = table
-                            .columns
-                            .into_iter()
-                            .map(|col| {
-                                if col.primary_key {
-                                    primary_key_columns.push(col.name.clone());
-                                }
-                                (
-                                    col.name.clone(),
-                                    DataColumnInfo {
-                                        name: col.name,
-                                        col_type: NormalizedType::from(&col.r#type),
-                                        is_nullable: !col.not_null,
-                                    },
-                                )
-                            })
-                            .collect();
-
-                        let mut primary_keys: Vec<PrimaryKey> = table
-                            .constraints
-                            .into_iter()
-                            .filter(|x| x.unique)
-                            .map(|x| PrimaryKey {
-                                name: x.index_name,
-                                columns: x.columns,
-                            })
-                            .collect();
-                        if !primary_key_columns.is_empty() {
-                            primary_keys.push(PrimaryKey {
-                                name: primary_key_columns.join("_") + "_pk",
-                                columns: primary_key_columns,
-                            });
-                        }
-
-                        (
-                            table.name.clone(),
-                            DataTableInfo {
-                                name: table.name,
-                                columns,
-                                primary_keys,
-                                foreign_keys: table
-                                    .foreign_keys
-                                    .into_iter()
-                                    .map(|x| ForeignKey {
-                                        name: x.id.to_string(),
-                                        from_columns: x.from,
-                                        to_table: x.table,
-                                        to_columns: x.to,
-                                    })
-                                    .collect(),
-                            },
-                        )
-                    })
-                    .collect();
-
-                Ok(tables)
+            #[cfg(feature = "postgres")]
+            SQLPool::Postgres(pool) => {
+                discovery::postgres::discover(pool, discovery::postgres::DEFAULT_SCHEMA).await
             }
         }
     }
 }
 
+#[cfg(test)]
+mod test {
+    #[cfg(feature = "csv")]
+    #[test]
+    fn delimiter_spec_parses_known_aliases() {
+        use crate::parse_delimiter_spec;
+        assert_eq!(parse_delimiter_spec(";"), Some(b';'));
+        assert_eq!(parse_delimiter_spec("\\t"), Some(b'\t'));
+        assert_eq!(parse_delimiter_spec("tab"), Some(b'\t'));
+        assert_eq!(parse_delimiter_spec("pipe"), Some(b'|'));
+        assert_eq!(parse_delimiter_spec("semicolon"), Some(b';'));
+        assert_eq!(parse_delimiter_spec(""), None);
+        assert_eq!(parse_delimiter_spec("two_chars"), None);
+    }
+
+    #[cfg(feature = "csv")]
+    #[test]
+    fn csv_spec_url_encoded_delimiter_is_honoured() {
+        // Frontend encodes `;` as `%3B` via encodeURIComponent; backend must decode.
+        let src = crate::CSVSource::from_csv_spec("/nonexistent.csv?delimiter=%3B");
+        assert_eq!(src.delimiter, b';');
+        let src = crate::CSVSource::from_csv_spec("/nonexistent.csv?delimiter=tab");
+        assert_eq!(src.delimiter, b'\t');
+    }
+
+    /// Roundtrip: write a tiny Parquet file with known schema + rows, then read
+    /// it back through DataSource and check types/values survive the trip.
+    #[cfg(feature = "parquet")]
+    #[tokio::test]
+    async fn parquet_roundtrip_reads_typed_values() -> anyhow::Result<()> {
+        use parquet::data_type::{ByteArray, ByteArrayType, Int64Type};
+        use parquet::file::properties::WriterProperties;
+        use parquet::file::writer::SerializedFileWriter;
+        use parquet::schema::parser::parse_message_type;
+        use std::sync::Arc;
+
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("dbcon_roundtrip_{}.parquet", std::process::id()));
+        let path_str = path.to_string_lossy().to_string();
+
+        let schema = Arc::new(parse_message_type(
+            "message schema {
+                REQUIRED INT64 id;
+                REQUIRED BYTE_ARRAY name (UTF8);
+            }",
+        )?);
+        let props = Arc::new(WriterProperties::default());
+        {
+            let file = std::fs::File::create(&path)?;
+            let mut writer = SerializedFileWriter::new(file, schema, props)?;
+            let mut rg = writer.next_row_group()?;
+
+            let mut c0 = rg.next_column()?.unwrap();
+            c0.typed::<Int64Type>()
+                .write_batch(&[1, 2, 3], None, None)?;
+            c0.close()?;
+
+            let mut c1 = rg.next_column()?.unwrap();
+            let names: Vec<ByteArray> = ["alice", "bob", "carol"]
+                .iter()
+                .map(|s| ByteArray::from(*s))
+                .collect();
+            c1.typed::<ByteArrayType>()
+                .write_batch(&names, None, None)?;
+            c1.close()?;
+
+            rg.close()?;
+            writer.close()?;
+        }
+
+        let ds = crate::DataSource::new_parquet("rt".into(), path_str.clone()).await?;
+
+        let table = ds.tables.get("main").expect("main table present");
+        let id_col = table.columns.get("id").expect("id col");
+        let name_col = table.columns.get("name").expect("name col");
+        assert_eq!(id_col.col_type, crate::NormalizedType::Integer);
+        assert_eq!(name_col.col_type, crate::NormalizedType::Text);
+
+        let rows = ds.get_all_records("main", &["id", "name"], false)?;
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0][0], crate::NormalizedValue::Integer(1));
+        assert_eq!(
+            rows[2][1],
+            crate::NormalizedValue::Text("carol".to_string())
+        );
+
+        let distinct = ds.get_distinct_values("main", "name")?;
+        let mut sorted = distinct.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["alice", "bob", "carol"]);
+
+        let _ = std::fs::remove_file(&path);
+        Ok(())
+    }
+
+    #[cfg(feature = "parquet")]
+    #[tokio::test]
+    async fn parquet_dispatch_recognises_suffix_and_scheme() -> anyhow::Result<()> {
+        use crate::{DataSource, DataSourceInner};
+        // new_any_without_discovery only constructs the source, it does not open the file.
+        let ds =
+            DataSource::new_any_without_discovery("x".into(), "some/path.parquet".into()).await?;
+        assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
+
+        let ds =
+            DataSource::new_any_without_discovery("x".into(), "parquet:///tmp/y.parquet".into())
+                .await?;
+        assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
+        Ok(())
+    }
+
+    /// A connection string for a backend this build was not compiled with must fail with
+    /// an error that names what the build *does* support, not a fixed list.
+    #[tokio::test]
+    async fn unsupported_connection_string_names_the_enabled_backends() {
+        let err = crate::DataSource::new_any_without_discovery(
+            "x".into(),
+            "mongodb://localhost/x".into(),
+        )
+        .await
+        .expect_err("mongodb is not a dbcon backend");
+        let msg = err.to_string();
+        assert!(msg.contains("mongodb://localhost/x"), "{msg}");
+        assert!(
+            msg.contains("Rebuild with the matching cargo feature"),
+            "{msg}"
+        );
+    }
+}

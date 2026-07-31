@@ -1,0 +1,681 @@
+tables: 36
+
+table "event" rows=1202267
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "event_pk": (ocel_id)
+  fk "event_fk_0": (ocel_type) -> "event_map_type"(ocel_type)
+
+table "event_A_Accepted" rows=31509
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Accepted_pk": (ocel_id)
+
+table "event_A_Cancelled" rows=10431
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Cancelled_pk": (ocel_id)
+
+table "event_A_Complete" rows=31362
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Complete_pk": (ocel_id)
+
+table "event_A_Concept" rows=31509
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Concept_pk": (ocel_id)
+
+table "event_A_Create Application" rows=31509
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Create Application_pk": (ocel_id)
+
+table "event_A_Denied" rows=3753
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Denied_pk": (ocel_id)
+
+table "event_A_Incomplete" rows=23055
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Incomplete_pk": (ocel_id)
+
+table "event_A_Pending" rows=17228
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Pending_pk": (ocel_id)
+
+table "event_A_Submitted" rows=20423
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Submitted_pk": (ocel_id)
+
+table "event_A_Validating" rows=38816
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_A_Validating_pk": (ocel_id)
+
+table "event_O_Accepted" rows=17228
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Accepted_pk": (ocel_id)
+
+table "event_O_Cancelled" rows=20898
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Cancelled_pk": (ocel_id)
+
+table "event_O_Create Offer" rows=42995
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Create Offer_pk": (ocel_id)
+
+table "event_O_Created" rows=42995
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Created_pk": (ocel_id)
+
+table "event_O_Refused" rows=4695
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Refused_pk": (ocel_id)
+
+table "event_O_Returned" rows=23305
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Returned_pk": (ocel_id)
+
+table "event_O_Sent (mail and online)" rows=39707
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Sent (mail and online)_pk": (ocel_id)
+
+table "event_O_Sent (online only)" rows=2026
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_O_Sent (online only)_pk": (ocel_id)
+
+table "event_W_Assess potential fraud" rows=3282
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Assess potential fraud_pk": (ocel_id)
+
+table "event_W_Call after offers" rows=191092
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Call after offers_pk": (ocel_id)
+
+table "event_W_Call incomplete files" rows=168529
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Call incomplete files_pk": (ocel_id)
+
+table "event_W_Complete application" rows=148900
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Complete application_pk": (ocel_id)
+
+table "event_W_Handle leads" rows=47264
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Handle leads_pk": (ocel_id)
+
+table "event_W_Personal Loan collection" rows=22
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Personal Loan collection_pk": (ocel_id)
+
+table "event_W_Shortened completion " rows=238
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Shortened completion _pk": (ocel_id)
+
+table "event_W_Validate application" rows=209496
+  col "Accepted": Text NULL
+  col "Action": Text NULL
+  col "ApplicationType": Text NULL
+  col "CreditScore": Text NULL
+  col "EventID": Text NULL
+  col "EventIDraw": Text NULL
+  col "EventOrigin": Text NULL
+  col "FirstWithdrawalAmount": Text NULL
+  col "LoanGoal": Text NULL
+  col "MonthlyCost": Text NULL
+  col "NumberOfTerms": Text NULL
+  col "OfferID": Text NULL
+  col "OfferedAmount": Text NULL
+  col "RequestedAmount": Float NULL
+  col "Selected": Text NULL
+  col "case": Text NULL
+  col "idx": Float NULL
+  col "lifecycle": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "resource": Text NULL
+  key "event_W_Validate application_pk": (ocel_id)
+
+table "event_map_type" rows=26
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "event_map_type_pk": (ocel_type)
+
+table "event_object" rows=2404534
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+  key "event_object_pk": (ocel_event_id, ocel_object_id, ocel_qualifier)
+  fk "event_object_fk_0": (ocel_object_id) -> "object"(ocel_id)
+  fk "event_object_fk_1": (ocel_event_id) -> "event"(ocel_id)
+
+table "object" rows=106162
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "object_pk": (ocel_id)
+  fk "object_fk_0": (ocel_type) -> "object_map_type"(ocel_type)
+
+table "object_Application" rows=31509
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Case_R" rows=149
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Offer" rows=42995
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Workflow" rows=31509
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_map_type" rows=4
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "object_map_type_pk": (ocel_type)
+
+table "object_object" rows=74504
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+  key "object_object_pk": (ocel_source_id, ocel_target_id, ocel_qualifier)

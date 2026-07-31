@@ -1,0 +1,49 @@
+tables: 8
+
+table "event" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "event_pk": (ocel_id)
+  fk "event_fk_0": (ocel_type) -> "event_map_type"(ocel_type)
+
+table "event_map_type" rows=1
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "event_map_type_pk": (ocel_type)
+
+table "event_object" rows=2
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+  key "event_object_pk": (ocel_event_id, ocel_object_id, ocel_qualifier)
+  fk "event_object_fk_0": (ocel_object_id) -> "object"(ocel_id)
+  fk "event_object_fk_1": (ocel_event_id) -> "event"(ocel_id)
+
+table "event_place order" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "price": Float NULL
+  key "event_place order_pk": (ocel_id)
+
+table "object" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "object_pk": (ocel_id)
+  fk "object_fk_0": (ocel_type) -> "object_map_type"(ocel_type)
+
+table "object_item" rows=1
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "weight": Float NULL
+
+table "object_map_type" rows=1
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "object_map_type_pk": (ocel_type)
+
+table "object_object" rows=1
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+  key "object_object_pk": (ocel_source_id, ocel_target_id, ocel_qualifier)

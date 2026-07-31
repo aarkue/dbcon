@@ -1,0 +1,149 @@
+tables: 27
+
+table "event" rows=35413
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "event_pk": (ocel_id)
+  fk "event_fk_0": (ocel_type) -> "event_map_type"(ocel_type)
+
+table "event_Book Vehicles" rows=594
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Book Vehicles_pk": (ocel_id)
+
+table "event_Bring to Loading Bay" rows=1969
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Bring to Loading Bay_pk": (ocel_id)
+
+table "event_Collect Goods" rows=10564
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Collect Goods_pk": (ocel_id)
+
+table "event_Create Transport Document" rows=595
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Create Transport Document_pk": (ocel_id)
+
+table "event_Depart" rows=127
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Depart_pk": (ocel_id)
+
+table "event_Drive to Terminal" rows=1992
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Drive to Terminal_pk": (ocel_id)
+
+table "event_Load Truck" rows=10567
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Load Truck_pk": (ocel_id)
+
+table "event_Load to Vehicle" rows=1969
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Load to Vehicle_pk": (ocel_id)
+
+table "event_Order Empty Containers" rows=593
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Order Empty Containers_pk": (ocel_id)
+
+table "event_Pick Up Empty Container" rows=1998
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Pick Up Empty Container_pk": (ocel_id)
+
+table "event_Place in Stock" rows=1817
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Place in Stock_pk": (ocel_id)
+
+table "event_Register Customer Order" rows=600
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Register Customer Order_pk": (ocel_id)
+
+table "event_Reschedule Container" rows=36
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Reschedule Container_pk": (ocel_id)
+
+table "event_Weigh" rows=1992
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_Weigh_pk": (ocel_id)
+
+table "event_map_type" rows=14
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "event_map_type_pk": (ocel_type)
+
+table "event_object" rows=74272
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+  key "event_object_pk": (ocel_event_id, ocel_object_id, ocel_qualifier)
+  fk "event_object_fk_0": (ocel_object_id) -> "object"(ocel_id)
+  fk "event_object_fk_1": (ocel_event_id) -> "event"(ocel_id)
+
+table "object" rows=13910
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "object_pk": (ocel_id)
+  fk "object_fk_0": (ocel_type) -> "object_map_type"(ocel_type)
+
+table "object_Container" rows=11982
+  col "Amount of Handling Units": Float NULL
+  col "Status": Text NULL
+  col "Weight": Float NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Customer Order" rows=1200
+  col "Amount of Goods": Integer NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Forklift" rows=3
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Handling Unit" rows=10579
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Transport Document" rows=2938
+  col "Amount of Containers": Float NULL
+  col "Status": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Truck" rows=6
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_Vehicle" rows=254
+  col "Departure Date": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_map_type" rows=7
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "object_map_type_pk": (ocel_type)
+
+table "object_object" rows=15926
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+  key "object_object_pk": (ocel_source_id, ocel_target_id, ocel_qualifier)

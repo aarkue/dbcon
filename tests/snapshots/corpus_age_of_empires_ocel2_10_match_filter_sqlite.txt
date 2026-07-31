@@ -1,0 +1,1624 @@
+tables: 392
+
+table "event" rows=34860
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+
+table "event_CommandQueueArcher" rows=476
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueBatteringRam" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueBoyar" rows=159
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueCamelScout" rows=316
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueEagleScout" rows=115
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueFireGalley" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueFishingShip" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueHandCannoneer" rows=13
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueJaguarWarrior" rows=50
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueKnight" rows=226
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueLeitis" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueLongbowman" rows=85
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueMangonel" rows=15
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueMilitia" rows=146
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueMonk" rows=83
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueScorpion" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueScoutCavalry" rows=482
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueSkirmisher" rows=297
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueSpearman" rows=1125
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueSteppeLancer" rows=139
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueTradeCart" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueTrebuchet" rows=63
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandQueueVillager" rows=2985
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearch" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchArson" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchBallistics" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchBlastFurnace" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchBlockPrinting" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchBloodlines" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchBodkinArrow" rows=7
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchBracer" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchCastleAge" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchCavalier" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchChainBardingArmor" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchChainMailArmor" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchChampion" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchChemistry" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchConscription" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchCrossbowman" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchDoubleBitAxe" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchDruzhina" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchEagleWarrior" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchEliteBoyar" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchEliteEagleWarrior" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchEliteLongbowman" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchEliteSkirmisher" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchFervor" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchFeudalAge" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchFletching" rows=15
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchForging" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchGoldMining" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchGuilds" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHalberdier" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHandCart" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHeavyCamelRider" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHeavyPlow" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHoardings" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHorseCollar" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchHusbandry" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchIllumination" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchImperialAge" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchIronCasting" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchKamandaran" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchLeatherArcherArmor" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchLightCavalry" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchLongSwordsman" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchLoom" rows=18
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchManatArms" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchMasonry" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchMurderHoles" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchPaddedArcherArmor" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchPikeman" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchPlateBardingArmor" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchPlateMailArmor" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchRedemption" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchRingArcherArmor" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchSanctity" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchScaleBardingArmor" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchScaleMailArmor" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchSquires" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchStoneMining" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchSupplies" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchTheocracy" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchThumbRing" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchTownPatrol" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchTownWatch" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchTwoHandedSwordsman" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchWheelbarrow" rows=14
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CommandResearchYeomen" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildArcheryRange" rows=48
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildBarracks" rows=67
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildBlacksmith" rows=24
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildCastle" rows=39
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildDock" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildFarm" rows=869
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildFishTrap" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildGate" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildHouse" rows=504
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildLumberCamp" rows=86
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildMarket" rows=17
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildMill" rows=52
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildMiningCamp" rows=87
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildMonastery" rows=16
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildOutpost" rows=12
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildPalisadeGate" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildSiegeWorkshop" rows=14
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildStable" rows=68
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildTownCenter" rows=54
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildUniversity" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteBuildWatchTower" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueArcher" rows=476
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueBatteringRam" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueBoyar" rows=159
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueCamelScout" rows=316
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueEagleScout" rows=115
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueFireGalley" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueFishingShip" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueHandCannoneer" rows=13
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueJaguarWarrior" rows=50
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueKnight" rows=226
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueLeitis" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueLongbowman" rows=85
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueMangonel" rows=15
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueMilitia" rows=146
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueMonk" rows=83
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueScorpion" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueScoutCavalry" rows=482
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueSkirmisher" rows=297
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueSpearman" rows=1125
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueSteppeLancer" rows=139
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueTradeCart" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueTrebuchet" rows=63
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteQueueVillager" rows=2985
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearch" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchArson" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchBallistics" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchBlastFurnace" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchBlockPrinting" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchBloodlines" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchBodkinArrow" rows=7
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchBracer" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchCastleAge" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchCavalier" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchChainBardingArmor" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchChainMailArmor" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchChampion" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchChemistry" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchConscription" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchCrossbowman" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchDoubleBitAxe" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchDruzhina" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchEagleWarrior" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchEliteBoyar" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchEliteEagleWarrior" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchEliteLongbowman" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchEliteSkirmisher" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchFervor" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchFeudalAge" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchFletching" rows=15
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchForging" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchGoldMining" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchGuilds" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHalberdier" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHandCart" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHeavyCamelRider" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHeavyPlow" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHoardings" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHorseCollar" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchHusbandry" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchIllumination" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchImperialAge" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchIronCasting" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchKamandaran" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchLeatherArcherArmor" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchLightCavalry" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchLongSwordsman" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchLoom" rows=18
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchManatArms" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchMasonry" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchMurderHoles" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchPaddedArcherArmor" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchPikeman" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchPlateBardingArmor" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchPlateMailArmor" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchRedemption" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchRingArcherArmor" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchSanctity" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchScaleBardingArmor" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchScaleMailArmor" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchSquires" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchStoneMining" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchSupplies" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchTheocracy" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchThumbRing" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchTownPatrol" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchTownWatch" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchTwoHandedSwordsman" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchWheelbarrow" rows=14
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CompleteResearchYeomen" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialCamelScout" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialEagleScout" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialGate" rows=34
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialGatedown" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialGateup" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialGoat" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialLlama" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialScoutCavalry" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialSheep" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialStoneWall" rows=337
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialTownCenter" rows=20
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_CreateInitialVillager" rows=61
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_GatherFood" rows=1786
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_GatherGold" rows=939
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_GatherNone" rows=582
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_GatherRelic" rows=30
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_GatherStone" rows=348
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_GatherWood" rows=2362
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_SetGatherPointFood" rows=308
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_SetGatherPointGold" rows=215
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_SetGatherPointNone" rows=1851
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_SetGatherPointRelic" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_SetGatherPointStone" rows=35
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_SetGatherPointWood" rows=498
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildArcheryRange" rows=48
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildBarracks" rows=67
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildBlacksmith" rows=24
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildCastle" rows=39
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildDock" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildFarm" rows=869
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildFishTrap" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildGate" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildHouse" rows=504
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildLumberCamp" rows=86
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildMarket" rows=17
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildMill" rows=52
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildMiningCamp" rows=87
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildMonastery" rows=16
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildOutpost" rows=12
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildPalisadeGate" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildSiegeWorkshop" rows=14
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildStable" rows=68
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildTownCenter" rows=54
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildUniversity" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartBuildWatchTower" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueArcher" rows=476
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueBatteringRam" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueBoyar" rows=159
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueCamelScout" rows=316
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueEagleScout" rows=115
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueFireGalley" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueFishingShip" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueHandCannoneer" rows=13
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueJaguarWarrior" rows=50
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueKnight" rows=226
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueLeitis" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueLongbowman" rows=85
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueMangonel" rows=15
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueMilitia" rows=146
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueMonk" rows=83
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueScorpion" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueScoutCavalry" rows=482
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueSkirmisher" rows=297
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueSpearman" rows=1125
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueSteppeLancer" rows=139
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueTradeCart" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueTrebuchet" rows=63
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartQueueVillager" rows=2985
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearch" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchArson" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchBallistics" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchBlastFurnace" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchBlockPrinting" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchBloodlines" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchBodkinArrow" rows=7
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchBracer" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchCastleAge" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchCavalier" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchChainBardingArmor" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchChainMailArmor" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchChampion" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchChemistry" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchConscription" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchCrossbowman" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchDoubleBitAxe" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchDruzhina" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchEagleWarrior" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchEliteBoyar" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchEliteEagleWarrior" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchEliteLongbowman" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchEliteSkirmisher" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchFervor" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchFeudalAge" rows=19
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchFletching" rows=15
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchForging" rows=11
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchGoldMining" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchGuilds" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHalberdier" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHandCart" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHeavyCamelRider" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHeavyPlow" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHoardings" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHorseCollar" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchHusbandry" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchIllumination" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchImperialAge" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchIronCasting" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchKamandaran" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchLeatherArcherArmor" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchLightCavalry" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchLongSwordsman" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchLoom" rows=18
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchManatArms" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchMasonry" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchMurderHoles" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchPaddedArcherArmor" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchPikeman" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchPlateBardingArmor" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchPlateMailArmor" rows=4
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchRedemption" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchRingArcherArmor" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchSanctity" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchScaleBardingArmor" rows=10
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchScaleMailArmor" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchSquires" rows=8
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchStoneMining" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchSupplies" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchTheocracy" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchThumbRing" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchTownPatrol" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchTownWatch" rows=9
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchTwoHandedSwordsman" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchWheelbarrow" rows=14
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_StartResearchYeomen" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_map_type" rows=333
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+
+table "event_object" rows=153218
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+
+table "object" rows=9365
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+
+table "object_Archer" rows=476
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_ArcheryRange" rows=48
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Barracks" rows=67
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_BatteringRam" rows=6
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Blacksmith" rows=24
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Boyar" rows=159
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_CamelScout" rows=317
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Castle" rows=39
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Dock" rows=3
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_EagleScout" rows=117
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Farm" rows=869
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_FireGalley" rows=1
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_FishTrap" rows=8
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_FishingShip" rows=10
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Gate" rows=44
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Gatedown" rows=9
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Gateup" rows=8
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Goat" rows=6
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_HandCannoneer" rows=13
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_House" rows=504
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_JaguarWarrior" rows=50
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Knight" rows=226
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Leitis" rows=11
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Llama" rows=2
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Longbowman" rows=85
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_LumberCamp" rows=86
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Mangonel" rows=15
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Market" rows=17
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Match" rows=10
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Militia" rows=146
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Mill" rows=52
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_MiningCamp" rows=87
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Monastery" rows=16
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Monk" rows=83
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Outpost" rows=12
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_PalisadeGate" rows=11
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Player" rows=20
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Scorpion" rows=8
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_ScoutCavalry" rows=501
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Session" rows=20
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Sheep" rows=4
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_SiegeWorkshop" rows=14
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Skirmisher" rows=297
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Spearman" rows=1125
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Stable" rows=68
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_SteppeLancer" rows=139
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_StoneWall" rows=337
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_TownCenter" rows=74
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_TradeCart" rows=1
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Trebuchet" rows=63
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_University" rows=10
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_Villager" rows=3046
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_WatchTower" rows=1
+  col "ocel_change_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_map_type" rows=53
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+
+table "object_object" rows=35958
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
