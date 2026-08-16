@@ -44,9 +44,12 @@
 //! | Feature | Enables | Pulls in |
 //! |---|---|---|
 //! | `sqlite` | `sqlite:` connection strings | `rusqlite` |
+//! | `duckdb` | `duckdb:` connection strings | `duckdb` (links `libduckdb`) |
+//! | `duckdb-bundled` | as `duckdb`, building `DuckDB` from source | `duckdb/bundled` |
 //! | `postgres` | `postgres://` / `postgresql://` | `sqlx` with its PostgreSQL driver |
 //! | `csv` | `csv://` and `*.csv` paths | `csv` |
 //! | `parquet` | `parquet://` and `*.parquet` paths | `parquet` |
+//! | `xlsx` | `xlsx://` and `*.xlsx` paths, one table per sheet | `calamine` |
 //!
 //! `sqlx` is optional and, notably, **not** what `sqlite` uses: see [`mod@sqlite`] for why
 //! stepping SQLite's own statement handle beats routing every row through a worker thread
@@ -57,7 +60,13 @@
 // body below is unreachable and its bindings are never read. That is the point of the
 // build, not an oversight.
 #![cfg_attr(
-    not(any(feature = "sql", feature = "csv", feature = "parquet")),
+    not(any(
+        feature = "sql",
+        feature = "csv",
+        feature = "parquet",
+        feature = "duckdb",
+        feature = "xlsx"
+    )),
     allow(unused_variables, unused_mut, unreachable_code)
 )]
 
@@ -65,12 +74,20 @@
 compile_error!("the `sql` feature is internal plumbing; enable the `postgres` feature instead");
 
 mod discovery;
+#[cfg(feature = "duckdb")]
+pub mod duckdb;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 mod types;
+#[cfg(feature = "xlsx")]
+pub mod xlsx;
 
+#[cfg(feature = "duckdb")]
+pub use duckdb::DuckDbSource;
 #[cfg(feature = "sqlite")]
 pub use sqlite::SqliteSource;
+#[cfg(feature = "xlsx")]
+pub use xlsx::XlsxSource;
 pub use types::{NormalizedType, NormalizedValue, SqliteAffinity, sqlite_affinity};
 
 use serde::{Deserialize, Serialize};
@@ -105,10 +122,14 @@ fn supported_connection_strings() -> String {
         "`postgres://`, `postgresql://`",
         #[cfg(feature = "sqlite")]
         "`sqlite:`",
+        #[cfg(feature = "duckdb")]
+        "`duckdb:`",
         #[cfg(feature = "csv")]
         "`csv://` or a path ending in `.csv`",
         #[cfg(feature = "parquet")]
         "`parquet://` or a path ending in `.parquet`",
+        #[cfg(feature = "xlsx")]
+        "`xlsx://` or a path ending in `.xlsx`",
     ];
     if forms.is_empty() {
         "nothing (this build enables no backend feature)".to_string()
@@ -215,6 +236,18 @@ impl DataSource {
         .await
     }
 
+    /// A workbook held in memory, every sheet a table.
+    ///
+    /// The route a browser and a `wasm32` build take: bytes with no path to open. `calamine` is
+    /// pure Rust, so unlike the DuckDB and PostgreSQL backends this one is available there.
+    #[cfg(feature = "xlsx")]
+    pub async fn new_xlsx_bytes(
+        name: String,
+        bytes: impl Into<std::sync::Arc<[u8]>>,
+    ) -> anyhow::Result<Self> {
+        Self::new(name, XlsxSource::from_bytes(bytes)).await
+    }
+
     /// A multi-table source assembled from one file per table -- a directory of CSV or Parquet
     /// files, or the members of an archive. Build the [`TableSetSource`] with
     /// [`TableSetSource::insert_csv`]/[`insert_parquet`](TableSetSource::insert_parquet).
@@ -222,7 +255,9 @@ impl DataSource {
         feature = "sql",
         feature = "sqlite",
         feature = "csv",
-        feature = "parquet"
+        feature = "parquet",
+        feature = "duckdb",
+        feature = "xlsx"
     ))]
     pub async fn new_table_set(name: String, tables: TableSetSource) -> anyhow::Result<Self> {
         Self::new(name, tables).await
@@ -262,6 +297,10 @@ impl DataSource {
         if connection_string.starts_with("sqlite:") {
             return Ok(SqliteSource::open(connection_string)?.into());
         }
+        #[cfg(feature = "duckdb")]
+        if connection_string.starts_with("duckdb:") {
+            return Ok(DuckDbSource::open(connection_string)?.into());
+        }
         #[cfg(feature = "csv")]
         if let Some(rest) = connection_string.strip_prefix("csv://") {
             return Ok(CSVSource::from_csv_spec(rest).into());
@@ -276,6 +315,14 @@ impl DataSource {
         #[cfg(feature = "csv")]
         if connection_string.ends_with(".csv") {
             return Ok(CSVSource::from_path_autodetect(connection_string.to_string()).into());
+        }
+        #[cfg(feature = "xlsx")]
+        if let Some(rest) = connection_string.strip_prefix("xlsx://") {
+            return Ok(XlsxSource::from_path(rest).into());
+        }
+        #[cfg(feature = "xlsx")]
+        if connection_string.ends_with(".xlsx") {
+            return Ok(XlsxSource::from_path(connection_string).into());
         }
         #[cfg(feature = "parquet")]
         if connection_string.ends_with(".parquet") {
@@ -440,16 +487,22 @@ pub enum DataSourceInner {
     SQL(SQLPool),
     #[cfg(feature = "sqlite")]
     Sqlite(SqliteSource),
+    #[cfg(feature = "duckdb")]
+    DuckDb(DuckDbSource),
     #[cfg(feature = "csv")]
     CSV(CSVSource),
     #[cfg(feature = "parquet")]
     Parquet(ParquetSource),
+    #[cfg(feature = "xlsx")]
+    Xlsx(XlsxSource),
     /// Several single-table sources presented as one multi-table source.
     #[cfg(any(
         feature = "sql",
         feature = "sqlite",
         feature = "csv",
-        feature = "parquet"
+        feature = "parquet",
+        feature = "duckdb",
+        feature = "xlsx"
     ))]
     TableSet(TableSetSource),
 }
@@ -466,7 +519,9 @@ pub enum DataSourceInner {
     feature = "sql",
     feature = "sqlite",
     feature = "csv",
-    feature = "parquet"
+    feature = "parquet",
+    feature = "duckdb",
+    feature = "xlsx"
 ))]
 #[derive(Debug, Default)]
 pub struct TableSetSource {
@@ -478,7 +533,9 @@ pub struct TableSetSource {
     feature = "sql",
     feature = "sqlite",
     feature = "csv",
-    feature = "parquet"
+    feature = "parquet",
+    feature = "duckdb",
+    feature = "xlsx"
 ))]
 #[derive(Debug)]
 struct TableSetMember {
@@ -491,7 +548,9 @@ struct TableSetMember {
     feature = "sql",
     feature = "sqlite",
     feature = "csv",
-    feature = "parquet"
+    feature = "parquet",
+    feature = "duckdb",
+    feature = "xlsx"
 ))]
 impl TableSetSource {
     /// Add `table`, backed by `inner`'s table `inner_table`. Replaces any table of that name.
@@ -547,7 +606,9 @@ impl TableSetSource {
     feature = "sql",
     feature = "sqlite",
     feature = "csv",
-    feature = "parquet"
+    feature = "parquet",
+    feature = "duckdb",
+    feature = "xlsx"
 ))]
 impl From<TableSetSource> for DataSourceInner {
     fn from(set: TableSetSource) -> Self {
@@ -565,6 +626,18 @@ impl From<PgPool> for DataSourceInner {
 impl From<SqliteSource> for DataSourceInner {
     fn from(source: SqliteSource) -> Self {
         Self::Sqlite(source)
+    }
+}
+#[cfg(feature = "duckdb")]
+impl From<DuckDbSource> for DataSourceInner {
+    fn from(source: DuckDbSource) -> Self {
+        Self::DuckDb(source)
+    }
+}
+#[cfg(feature = "xlsx")]
+impl From<XlsxSource> for DataSourceInner {
+    fn from(source: XlsxSource) -> Self {
+        Self::Xlsx(source)
     }
 }
 #[cfg(feature = "csv")]
@@ -587,7 +660,7 @@ impl From<ParquetSource> for DataSourceInner {
 /// cost of one column the caller did not ask for; every caller therefore truncates each row
 /// to `columns.len()` before handing it on. Asking for no columns is a real request -- a
 /// mapping whose targets are all constants still needs one callback per row.
-#[cfg(any(feature = "sql", feature = "sqlite"))]
+#[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
 fn build_select_query(
     columns: &[&str],
     table: &str,
@@ -799,13 +872,21 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
             DataSourceInner::SQL(sql) => sql.get_tables().await,
             #[cfg(feature = "sqlite")]
             DataSourceInner::Sqlite(source) => discovery::sqlite::discover(source),
+            #[cfg(feature = "duckdb")]
+            DataSourceInner::DuckDb(source) => {
+                discovery::duckdb::discover(source, discovery::duckdb::DEFAULT_SCHEMA)
+            }
+            #[cfg(feature = "xlsx")]
+            DataSourceInner::Xlsx(x) => x.get_tables(),
             #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => csv.get_tables().await,
             #[cfg(feature = "parquet")]
@@ -814,7 +895,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             ))]
             DataSourceInner::TableSet(set) => {
                 let mut tables = HashMap::new();
@@ -850,7 +933,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
@@ -873,6 +958,31 @@ impl DataSourceInner {
                 let mut rows = source.rows(&query, limit)?;
                 for row in &mut rows {
                     row.truncate(columns.len());
+                }
+                Ok(rows)
+            }
+            #[cfg(feature = "duckdb")]
+            DataSourceInner::DuckDb(source) => {
+                let query = build_select_query(columns, table, None, limit, unique);
+                let mut rows = source.rows(&query, limit)?;
+                for row in &mut rows {
+                    row.truncate(columns.len());
+                }
+                Ok(rows)
+            }
+            #[cfg(feature = "xlsx")]
+            DataSourceInner::Xlsx(x) => {
+                // No SQL to build: a sheet is read directly and projected onto `columns`.
+                if !unique {
+                    return x.rows(table, columns, limit);
+                }
+                // `limit` counts the rows handed back, as `SELECT DISTINCT ... LIMIT` does, so
+                // the sheet is read whole and cut only once the duplicates are gone.
+                let mut rows = x.rows(table, columns, None)?;
+                let mut seen = std::collections::HashSet::new();
+                rows.retain(|r| seen.insert(format!("{r:?}")));
+                if let Some(limit) = limit {
+                    rows.truncate(limit);
                 }
                 Ok(rows)
             }
@@ -960,7 +1070,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             ))]
             DataSourceInner::TableSet(set) => {
                 let m = set.member(table)?;
@@ -978,7 +1090,7 @@ impl DataSourceInner {
         order_by: Option<&[&str]>,
         handler: &mut dyn FnMut(&[NormalizedValue]) -> ControlFlow<()>,
     ) -> anyhow::Result<()> {
-        #[cfg(any(feature = "sql", feature = "sqlite"))]
+        #[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
         let query = build_select_query(columns, table, order_by, None, false);
         match self {
             // With no backend feature enabled `DataSourceInner` is uninhabited, so this
@@ -987,7 +1099,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
@@ -1020,6 +1134,21 @@ impl DataSourceInner {
             DataSourceInner::Sqlite(source) => {
                 let want = columns.len();
                 source.for_each(&query, &mut |row| handler(&row[..want]))?;
+            }
+            #[cfg(feature = "duckdb")]
+            DataSourceInner::DuckDb(source) => {
+                let want = columns.len();
+                source.for_each(&query, &mut |row| handler(&row[..want]))?;
+            }
+            #[cfg(feature = "xlsx")]
+            DataSourceInner::Xlsx(x) => {
+                if order_by.is_some_and(|o| !o.is_empty()) {
+                    eprintln!(
+                        "[dbcon] warning: order_by ignored for XLSX source '{}': rows are read in sheet order",
+                        x.data.describe()
+                    );
+                }
+                x.for_each(table, columns, handler)?;
             }
             #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
@@ -1100,7 +1229,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             ))]
             DataSourceInner::TableSet(set) => {
                 let m = set.member(table)?;
@@ -1124,7 +1255,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
@@ -1157,6 +1290,13 @@ impl DataSourceInner {
             }
             #[cfg(feature = "sqlite")]
             DataSourceInner::Sqlite(source) => source.for_each_named(sql, handler),
+            #[cfg(feature = "duckdb")]
+            DataSourceInner::DuckDb(source) => source.for_each_named(sql, handler),
+            #[cfg(feature = "xlsx")]
+            DataSourceInner::Xlsx(x) => Err(anyhow::anyhow!(
+                "{} is a workbook, not a SQL engine, so it cannot run a query",
+                x.data.describe()
+            )),
             #[cfg(feature = "csv")]
             DataSourceInner::CSV(_) => {
                 let _ = (sql, &mut *handler);
@@ -1171,7 +1311,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             ))]
             DataSourceInner::TableSet(_) => {
                 let _ = (sql, &mut *handler);
@@ -1182,6 +1324,8 @@ impl DataSourceInner {
 
     /// Get distinct values of a single column
     pub fn get_distinct_values(&self, table: &str, column: &str) -> anyhow::Result<Vec<String>> {
+        #[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
+        let select_distinct = format!("SELECT DISTINCT \"{}\" FROM \"{}\"", column, table);
         match self {
             // With no backend feature enabled `DataSourceInner` is uninhabited, so this
             // is the only arm and it is unreachable. With any feature on it is cfg'd out.
@@ -1189,28 +1333,28 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
-            DataSourceInner::SQL(sql) => {
-                let query = format!("SELECT DISTINCT \"{}\" FROM \"{}\"", column, table);
-                match sql {
-                    #[cfg(feature = "postgres")]
-                    SQLPool::Postgres(pool) => {
-                        let rows = block_on(sqlx::query(&query).fetch_all(pool))??;
-                        Ok(rows
-                            .iter()
-                            .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
-                            .collect())
-                    }
+            DataSourceInner::SQL(sql) => match sql {
+                #[cfg(feature = "postgres")]
+                SQLPool::Postgres(pool) => {
+                    let rows = block_on(sqlx::query(&select_distinct).fetch_all(pool))??;
+                    Ok(rows
+                        .iter()
+                        .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
+                        .collect())
                 }
-            }
+            },
             #[cfg(feature = "sqlite")]
-            DataSourceInner::Sqlite(source) => source.text_column(&format!(
-                "SELECT DISTINCT \"{}\" FROM \"{}\"",
-                column, table
-            )),
+            DataSourceInner::Sqlite(source) => source.text_column(&select_distinct),
+            #[cfg(feature = "duckdb")]
+            DataSourceInner::DuckDb(source) => source.text_column(&select_distinct),
+            #[cfg(feature = "xlsx")]
+            DataSourceInner::Xlsx(x) => x.distinct_values(table, column),
             #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
                 let _ = table;
@@ -1264,7 +1408,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             ))]
             DataSourceInner::TableSet(set) => {
                 let m = set.member(table)?;
@@ -1278,7 +1424,7 @@ impl DataSourceInner {
         table: &str,
         limit: Option<usize>,
     ) -> anyhow::Result<Vec<HashMap<String, String>>> {
-        #[cfg(any(feature = "sql", feature = "sqlite"))]
+        #[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
         let select_all = match limit {
             Some(n) => format!("SELECT * FROM \"{}\" LIMIT {}", table, n),
             None => format!("SELECT * FROM \"{}\"", table),
@@ -1290,7 +1436,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
@@ -1303,6 +1451,10 @@ impl DataSourceInner {
             },
             #[cfg(feature = "sqlite")]
             DataSourceInner::Sqlite(source) => source.named_string_rows(&select_all, limit),
+            #[cfg(feature = "duckdb")]
+            DataSourceInner::DuckDb(source) => source.named_string_rows(&select_all, limit),
+            #[cfg(feature = "xlsx")]
+            DataSourceInner::Xlsx(x) => x.named_string_rows(table, limit),
             #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
                 let _ = table;
@@ -1362,7 +1514,9 @@ impl DataSourceInner {
                 feature = "sql",
                 feature = "sqlite",
                 feature = "csv",
-                feature = "parquet"
+                feature = "parquet",
+                feature = "duckdb",
+                feature = "xlsx"
             ))]
             DataSourceInner::TableSet(set) => {
                 let m = set.member(table)?;
@@ -1394,7 +1548,7 @@ pub const CSV_TABLE_NAME: &str = "main";
 /// Owned and cheap to clone rather than a reader, because both file-backed sources re-read from
 /// the start on every operation (schema, scan, distinct values, preview). A one-shot
 /// `impl Read` cannot serve that; an `Arc<[u8]>` can, at one allocation.
-#[cfg(any(feature = "csv", feature = "parquet"))]
+#[cfg(any(feature = "csv", feature = "parquet", feature = "xlsx"))]
 #[derive(Debug, Clone)]
 pub enum SourceData {
     /// A file on disk, opened afresh for each read.
@@ -1403,7 +1557,7 @@ pub enum SourceData {
     Memory(std::sync::Arc<[u8]>),
 }
 
-#[cfg(any(feature = "csv", feature = "parquet"))]
+#[cfg(any(feature = "csv", feature = "parquet", feature = "xlsx"))]
 impl SourceData {
     /// The path, when there is one. `None` for in-memory bytes, which have no name to report.
     pub fn path(&self) -> Option<&str> {
@@ -1430,6 +1584,7 @@ impl SourceData {
     }
 }
 
+#[cfg(any(feature = "csv", feature = "parquet", feature = "xlsx"))]
 impl From<String> for SourceData {
     fn from(path: String) -> Self {
         SourceData::Path(path)

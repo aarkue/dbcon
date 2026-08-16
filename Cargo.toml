@@ -19,6 +19,9 @@ rusqlite = { version = "0.38", features = [
     "bundled",
     "column_decltype",
 ], optional = true }
+# Not `bundled` by default, matching rust4pm's own `ocel-duckdb` dependency: bundling compiles
+# DuckDB's C++ from source on every clean build. `duckdb-bundled` opts in.
+duckdb = { version = "1.2.1", features = ["chrono"], optional = true }
 anyhow = "1.0"
 futures = { version = "0.3", optional = true }
 # Only the PostgreSQL backend is genuinely async
@@ -27,6 +30,9 @@ tokio = { version = "1", default-features = false, features = [
 ], optional = true }
 csv = { version = "1.4.0", optional = true }
 parquet = { version = "58", optional = true }
+# `dates` is the point, not a nicety: an Excel date cell holds a serial number and is only a date
+# because a number format says so, so without it a date column reads as five-digit integers.
+calamine = { version = "0.36", features = ["dates"], optional = true }
 # Only to hand parquet an in-memory `ChunkReader`; `parquet` already depends on it.
 bytes = { version = "1", optional = true }
 # In-memory parquet: `bytes::Bytes` is what `parquet` itself implements `ChunkReader` for.
@@ -38,9 +44,16 @@ chrono = { version = "0.4.43", features = ["serde"] }
 default = []
 sql = ["dep:sqlx", "dep:futures", "dep:tokio"]
 sqlite = ["dep:rusqlite"]
+# Links against libduckdb. Add the `duckdb-bundled` feature to build it from source instead, which
+# needs a C++ toolchain but no system library.
+duckdb = ["dep:duckdb"]
+duckdb-bundled = ["duckdb", "duckdb/bundled"]
 postgres = ["sql", "sqlx/postgres"]
 csv = ["dep:csv"]
 parquet = ["dep:parquet", "dep:bytes"]
+# Pure Rust, so unlike `duckdb`/`postgres` this one also builds for wasm32 and can be read from
+# bytes with no filesystem.
+xlsx = ["dep:calamine"]
 
 [dev-dependencies]
 dotenvy = "0.15"

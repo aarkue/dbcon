@@ -31,6 +31,7 @@ use std::sync::Mutex;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OpenFlags};
 
+use crate::types::parse_timestamp;
 use crate::{NormalizedType, NormalizedValue};
 
 /// An open SQLite database.
@@ -310,45 +311,6 @@ fn decode(value: ValueRef<'_>, declared: &NormalizedType) -> NormalizedValue {
         // dbcon has no byte-string variant, and rendering bytes as text would corrupt them.
         ValueRef::Blob(_) => NormalizedValue::Null,
     }
-}
-
-/// Read the datetime spellings SQLite itself writes and accepts, widest first.
-///
-/// `strftime`-style output (`2024-01-02 03:04:05`) has no zone, ISO 8601 output has a `T` and
-/// may carry one, and `date()` writes a bare date. All are stored as text in a column whose
-/// declared type SQLite never enforces, so the cascade is the only way to read them.
-fn parse_timestamp(text: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
-    if let Ok(t) = chrono::DateTime::parse_from_rfc3339(text) {
-        return Some(t);
-    }
-    for format in [
-        "%Y-%m-%d %H:%M:%S%.f%#z",
-        "%Y-%m-%dT%H:%M:%S%.f%#z",
-        "%Y-%m-%d %H:%M%#z",
-        "%Y-%m-%dT%H:%M%#z",
-    ] {
-        if let Ok(t) = chrono::DateTime::parse_from_str(text, format) {
-            return Some(t);
-        }
-    }
-    for format in [
-        "%Y-%m-%d %H:%M:%S%.f",
-        "%Y-%m-%dT%H:%M:%S%.f",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%dT%H:%M",
-    ] {
-        if let Ok(t) = chrono::NaiveDateTime::parse_from_str(text, format) {
-            return Some(t.and_utc().fixed_offset());
-        }
-    }
-    chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")
-        .ok()
-        .map(|d| {
-            d.and_hms_opt(0, 0, 0)
-                .unwrap_or_default()
-                .and_utc()
-                .fixed_offset()
-        })
 }
 
 #[cfg(test)]

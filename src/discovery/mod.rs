@@ -12,5 +12,7 @@
 
 #[cfg(feature = "postgres")]
 pub(crate) mod postgres;
+#[cfg(feature = "duckdb")]
+pub(crate) mod duckdb;
 #[cfg(feature = "sqlite")]
 pub(crate) mod sqlite;

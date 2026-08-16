@@ -144,6 +144,48 @@ impl From<chrono::DateTime<chrono::FixedOffset>> for NormalizedValue {
     }
 }
 
+/// Read the datetime spellings a text-carried timestamp may arrive in, widest first.
+///
+/// `strftime`-style output (`2024-01-02 03:04:05`) has no zone, ISO 8601 output has a `T`
+/// and may carry one, and a bare date has no time at all. Shared by the backends that
+/// store an instant as text and so cannot be told its shape in advance: SQLite, whose
+/// declared column type it never enforces, and xlsx, whose `DateTimeIso` cell holds
+/// whatever the writer wrote.
+#[cfg(any(feature = "sqlite", feature = "xlsx"))]
+pub(crate) fn parse_timestamp(text: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    if let Ok(t) = chrono::DateTime::parse_from_rfc3339(text) {
+        return Some(t);
+    }
+    for format in [
+        "%Y-%m-%d %H:%M:%S%.f%#z",
+        "%Y-%m-%dT%H:%M:%S%.f%#z",
+        "%Y-%m-%d %H:%M%#z",
+        "%Y-%m-%dT%H:%M%#z",
+    ] {
+        if let Ok(t) = chrono::DateTime::parse_from_str(text, format) {
+            return Some(t);
+        }
+    }
+    for format in [
+        "%Y-%m-%d %H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M",
+    ] {
+        if let Ok(t) = chrono::NaiveDateTime::parse_from_str(text, format) {
+            return Some(t.and_utc().fixed_offset());
+        }
+    }
+    chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")
+        .ok()
+        .map(|d| {
+            d.and_hms_opt(0, 0, 0)
+                .unwrap_or_default()
+                .and_utc()
+                .fixed_offset()
+        })
+}
+
 /// SQLite's five column affinities, as defined by
 /// <https://www.sqlite.org/datatype3.html#determination_of_column_affinity>.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
