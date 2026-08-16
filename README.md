@@ -2,13 +2,19 @@
 
 Universal Rust connector for tabular data sources.
 
-`dbcon` offers a single async API over SQLite, PostgreSQL, and CSV files. It provides:
+`dbcon` offers a single API over SQLite, PostgreSQL, CSV, and Parquet files. It provides:
 
 - Automatic schema discovery (tables, columns, primary and foreign keys)
-- Row iteration with eager (`get_all_records`) and streaming (`for_each_record`) modes
+- Row iteration with eager (`get_all_records`) and streaming (`scan`) modes
 - Distinct-value queries on single columns
 - Backend-agnostic `NormalizedValue` and `NormalizedType` so callers don't have to
   branch on source type
+
+**Connecting and discovering a schema are `async`; reading rows is not.** Connections
+involve network round trips and happen once. A row scan is a tight loop over a callback
+with no await point between two rows, so `async` there would buy a caller nothing while
+forcing every synchronous consumer to own a runtime. Only PostgreSQL is genuinely async
+underneath, and it drives its own runtime once per scan.
 
 ## Supported sources
 
@@ -17,6 +23,36 @@ Universal Rust connector for tabular data sources.
 | PostgreSQL | Yes              | Yes          |
 | SQLite     | Yes              | Yes          |
 | CSV        | Headers only     | Yes          |
+| Parquet    | Yes              | Yes          |
+
+## Cargo features
+
+Every backend is a feature and **nothing is on by default** - pick what you need:
+
+```toml
+dbcon = { version = "0.2", features = ["sqlite", "csv"] }
+```
+
+| Feature | Backend | Pulls in |
+| --- | --- | --- |
+| `sqlite` | `sqlite:` | `rusqlite` |
+| `postgres` | `postgres://`, `postgresql://` | `sqlx` + its PostgreSQL driver |
+| `csv` | `csv://`, `*.csv` | `csv` |
+| `parquet` | `parquet://`, `*.parquet` | `parquet` |
+
+`sqlx` is optional and only `postgres` needs it. SQLite goes through `rusqlite`: sqlx
+gives every SQLite connection a dedicated OS thread and ships one channel message per row,
+which measured at ~12x the cost of stepping the statement directly on a full-table scan.
+Measured with `cargo tree -e normal`, unique crates in the dependency graph:
+
+| Features | Crates |
+| --- | --- |
+| none | 16 |
+| `csv` | 19 |
+| `sqlite` | 25 |
+| `parquet` | 59 |
+| `postgres` | 130 |
+| `sqlite,postgres,csv,parquet` | 173 |
 
 Connection strings:
 
@@ -26,16 +62,19 @@ postgresql://user:password@host/db
 sqlite:path/to/file.db
 csv://path/to/file.csv
 path/to/file.csv              # Bare .csv path is also accepted
+parquet://path/to/file.parquet
+path/to/file.parquet          # Bare .parquet path is also accepted
 ```
 
 ## Usage
 
 ```rust,no_run
 use dbcon::DataSource;
+use std::ops::ControlFlow;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Auto-detect source type from the connection string
+    // Auto-detect source type from the connection string. Connecting is async.
     let ds = DataSource::new_any(
         "example".into(),
         "sqlite:orders.db".into(),
@@ -46,14 +85,16 @@ async fn main() -> anyhow::Result<()> {
         println!("Table: {table}");
     }
 
-    // Read all rows of a table for a subset of columns
-    let rows = ds.get_all_records("orders", &["id", "customer"], false).await?;
+    // Reading rows is not async.
+    let rows = ds.get_all_records("orders", &["id", "customer"], false)?;
     println!("{} rows", rows.len());
 
-    // Stream large tables without materialising in memory
-    ds.for_each_record("orders", &["id", "customer"], None, |row| {
+    // Stream large tables without materialising in memory. `row` borrows a buffer reused
+    // for every row, so copy anything you keep; `Break` abandons the scan.
+    ds.scan("orders", &["id", "customer"], None, &mut |row| {
         println!("{row:?}");
-    }).await?;
+        ControlFlow::Continue(())
+    })?;
 
     Ok(())
 }
@@ -64,25 +105,41 @@ use `DataSource::new_any_without_discovery`.
 
 ## Running the tests
 
-The tests require a running PostgreSQL instance, an SQLite database, and a CSV file.
-Paths/URLs are read from a `.env` file (see `.env.example`):
-
-```text
-POSTGRES_URL=postgres://user:password@localhost/dbname
-SQLITE_PATH=sqlite:path/to/database.sqlite
-CSV_PATH=path/to/file.csv
+```sh
+cargo test --features sqlite,postgres,csv,parquet
 ```
 
-Then run `cargo test`.
+Everything except the two targets below runs with no setup: SQLite discovery is covered
+by the fixtures in `tests/fixtures`, compared against committed snapshots in
+`tests/snapshots`.
+
+**`tests/corpus.rs`** runs discovery over real database files under `$DBCON_CORPUS`
+(`datasets/Chinook_Sqlite.sqlite`, `datasets/northwind.db`, `ocel/*.sqlite`). It has no
+libtest harness so that an unset `DBCON_CORPUS` prints a visible "did not run" banner
+instead of quietly passing:
+
+```sh
+DBCON_CORPUS=~/dow  cargo test --release --features sqlite --test corpus
+DBCON_CORPUS_REQUIRED=1 cargo test --features sqlite --test corpus  # absence is a failure
+DBCON_CORPUS_FULL=1 ...    # scan every row rather than stopping at the 2M-row budget
+DBCON_SNAPSHOT_UPDATE=1 ...  # rewrite the committed snapshots
+```
+
+**`tests/postgres.rs`** needs `POSTGRES_URL` (read from `.env`, see `.env.example`).
+There is no PostgreSQL corpus file - a Postgres schema lives in a server, not a file -
+so without a reachable server that half of discovery is not exercised. The test says so
+rather than passing silently; `DBCON_POSTGRES_REQUIRED=1` makes it a failure.
 
 ## Dependency notes
 
-`dbcon` currently depends on a patched fork of `sqlx`
-([aarkue/sqlx-fix](https://github.com/aarkue/sqlx-fix), branch `sqlite3-fix`) to work
-around an upstream SQLite parsing issue, and on a release-candidate of `sea-schema`.
-Both are git dependencies, so `dbcon` cannot be published to crates.io as-is;
-downstream consumers must mirror the `[patch.crates-io]` entry in their workspace
-`Cargo.toml`.
+Schema discovery is dbcon's own: `src/discovery/` queries `sqlite_master`/`PRAGMA` and
+`information_schema` directly. The `sea-schema` dependency, and with it the
+`[patch.crates-io]` entry consumers had to mirror, is gone.
+
+`dbcon` still depends on a patched fork of `sqlx`
+([aarkue/sqlx-fix](https://github.com/aarkue/sqlx-fix), branch `sqlite3-fix`), so it
+cannot be published to crates.io as-is. That dependency now only exists when the
+`postgres` feature is enabled; a `sqlite`-only build does not compile sqlx at all.
 
 ## License
 

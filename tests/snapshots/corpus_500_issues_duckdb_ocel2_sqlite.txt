@@ -1,0 +1,176 @@
+tables: 39
+
+table "event" rows=7773
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+
+table "event_added_to_merge_queue" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_assigned" rows=2
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_base_ref_changed" rows=18
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_closed" rows=509
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_commented" rows=806
+  col "author_association": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_committed" rows=1922
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_connected" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_convert_to_draft" rows=323
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_converted_to_discussion" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_created" rows=500
+  col "author_association": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_cross_referenced" rows=197
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_head_ref_deleted" rows=104
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_head_ref_force_pushed" rows=82
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_labeled" rows=348
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_locked" rows=7
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_map_type" rows=29
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+
+table "event_mentioned" rows=181
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_merged" rows=364
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_object" rows=17586
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+
+table "event_ready_for_review" rows=326
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_referenced" rows=1455
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_removed_from_merge_queue" rows=6
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_renamed" rows=50
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_review_request_removed" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_review_requested" rows=112
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_reviewed" rows=121
+  col "author_association": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_subscribed" rows=207
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_transferred" rows=3
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_unassigned" rows=1
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_unlabeled" rows=108
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "event_unsubscribed" rows=5
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object" rows=2664
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+
+table "object_commit" rows=5766
+  col "commit_message": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+  col "sha": Text NULL
+  col "url": Text NULL
+
+table "object_issue" rows=1500
+  col "number": Integer NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+  col "timeline_url": Text NULL
+  col "title": Text NULL
+
+table "object_map_type" rows=4
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+
+table "object_object" rows=609
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+
+table "object_team" rows=0
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+
+table "object_user" rows=779
+  col "id": Integer NULL
+  col "login": Text NULL
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Text NULL
+  col "type": Text NULL
+  col "url": Text NULL

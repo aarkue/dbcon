@@ -1,0 +1,27 @@
+tables: 1
+
+table "type_zoo" rows=3
+  col "c_aff_int": Integer NULL
+  col "c_aff_real": Float NULL
+  col "c_aff_text": Text NULL
+  col "c_aff_text2": Text NULL
+  col "c_bigint": Integer NULL
+  col "c_blob": Unknown("blob") NULL
+  col "c_bool": Boolean NULL
+  col "c_clob": Text NULL
+  col "c_date": Timestamp NULL
+  col "c_datetime": Timestamp NULL
+  col "c_double": Float NULL
+  col "c_float": Float NULL
+  col "c_int8": Integer NULL
+  col "c_integer": Integer NULL
+  col "c_json": Json NULL
+  col "c_numeric": Float NULL
+  col "c_nvarchar": Text NULL
+  col "c_real": Float NULL
+  col "c_text": Text NOT NULL
+  col "c_timestamp": Timestamp NULL
+  col "c_tinyint": Integer NULL
+  col "c_untyped": Unknown("") NULL
+  col "c_varchar": Text NULL
+  col "c_weird": Unknown("blah") NULL

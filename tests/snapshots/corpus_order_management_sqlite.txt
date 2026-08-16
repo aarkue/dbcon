@@ -1,0 +1,129 @@
+tables: 23
+
+table "event" rows=21008
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "event_pk": (ocel_id)
+  fk "event_fk_0": (ocel_type) -> "event_map_type"(ocel_type)
+
+table "event_confirm order" rows=2000
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_confirm order_pk": (ocel_id)
+
+table "event_create package" rows=1128
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_create package_pk": (ocel_id)
+
+table "event_failed delivery" rows=311
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_failed delivery_pk": (ocel_id)
+
+table "event_item out of stock" rows=1544
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_item out of stock_pk": (ocel_id)
+
+table "event_map_type" rows=11
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "event_map_type_pk": (ocel_type)
+
+table "event_object" rows=147463
+  col "ocel_event_id": Text NULL
+  col "ocel_object_id": Text NULL
+  col "ocel_qualifier": Text NULL
+  key "event_object_pk": (ocel_event_id, ocel_object_id, ocel_qualifier)
+  fk "event_object_fk_0": (ocel_object_id) -> "object"(ocel_id)
+  fk "event_object_fk_1": (ocel_event_id) -> "event"(ocel_id)
+
+table "event_package delivered" rows=1128
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_package delivered_pk": (ocel_id)
+
+table "event_pay order" rows=2000
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_pay order_pk": (ocel_id)
+
+table "event_payment reminder" rows=566
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_payment reminder_pk": (ocel_id)
+
+table "event_pick item" rows=7659
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_pick item_pk": (ocel_id)
+
+table "event_place order" rows=2000
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_place order_pk": (ocel_id)
+
+table "event_reorder item" rows=1544
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_reorder item_pk": (ocel_id)
+
+table "event_send package" rows=1128
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  key "event_send package_pk": (ocel_id)
+
+table "object" rows=10840
+  col "ocel_id": Text NULL
+  col "ocel_type": Text NULL
+  key "object_pk": (ocel_id)
+  fk "object_fk_0": (ocel_type) -> "object_map_type"(ocel_type)
+
+table "object_customers" rows=15
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+
+table "object_employees" rows=36
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "role": Text NULL
+
+table "object_items" rows=22977
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "price": Float NULL
+  col "weight": Float NULL
+
+table "object_map_type" rows=6
+  col "ocel_type": Text NULL
+  col "ocel_type_map": Text NULL
+  key "object_map_type_pk": (ocel_type)
+
+table "object_object" rows=28391
+  col "ocel_qualifier": Text NULL
+  col "ocel_source_id": Text NULL
+  col "ocel_target_id": Text NULL
+  key "object_object_pk": (ocel_source_id, ocel_target_id, ocel_qualifier)
+
+table "object_orders" rows=4000
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "price": Float NULL
+
+table "object_packages" rows=2256
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "weight": Float NULL
+
+table "object_products" rows=160
+  col "ocel_changed_field": Text NULL
+  col "ocel_id": Text NULL
+  col "ocel_time": Timestamp NULL
+  col "price": Float NULL
+  col "weight": Float NULL

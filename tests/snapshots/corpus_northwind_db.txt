@@ -1,0 +1,141 @@
+tables: 13
+
+table "Categories" rows=8
+  col "CategoryID": Integer NULL
+  col "CategoryName": Text NULL
+  col "Description": Text NULL
+  col "Picture": Unknown("blob") NULL
+  key "Categories_pk": (CategoryID)
+
+table "CustomerCustomerDemo" rows=0
+  col "CustomerID": Text NOT NULL
+  col "CustomerTypeID": Text NOT NULL
+  key "CustomerCustomerDemo_pk": (CustomerID, CustomerTypeID)
+  fk "CustomerCustomerDemo_fk_0": (CustomerTypeID) -> "CustomerDemographics"(CustomerTypeID)
+  fk "CustomerCustomerDemo_fk_1": (CustomerID) -> "Customers"(CustomerID)
+
+table "CustomerDemographics" rows=0
+  col "CustomerDesc": Text NULL
+  col "CustomerTypeID": Text NOT NULL
+  key "CustomerDemographics_pk": (CustomerTypeID)
+
+table "Customers" rows=93
+  col "Address": Text NULL
+  col "City": Text NULL
+  col "CompanyName": Text NULL
+  col "ContactName": Text NULL
+  col "ContactTitle": Text NULL
+  col "Country": Text NULL
+  col "CustomerID": Text NULL
+  col "Fax": Text NULL
+  col "Phone": Text NULL
+  col "PostalCode": Text NULL
+  col "Region": Text NULL
+  key "Customers_pk": (CustomerID)
+
+table "EmployeeTerritories" rows=49
+  col "EmployeeID": Integer NOT NULL
+  col "TerritoryID": Text NOT NULL
+  key "EmployeeTerritories_pk": (EmployeeID, TerritoryID)
+  fk "EmployeeTerritories_fk_0": (TerritoryID) -> "Territories"(TerritoryID)
+  fk "EmployeeTerritories_fk_1": (EmployeeID) -> "Employees"(EmployeeID)
+
+table "Employees" rows=9
+  col "Address": Text NULL
+  col "BirthDate": Timestamp NULL
+  col "City": Text NULL
+  col "Country": Text NULL
+  col "EmployeeID": Integer NULL
+  col "Extension": Text NULL
+  col "FirstName": Text NULL
+  col "HireDate": Timestamp NULL
+  col "HomePhone": Text NULL
+  col "LastName": Text NULL
+  col "Notes": Text NULL
+  col "Photo": Unknown("blob") NULL
+  col "PhotoPath": Text NULL
+  col "PostalCode": Text NULL
+  col "Region": Text NULL
+  col "ReportsTo": Integer NULL
+  col "Title": Text NULL
+  col "TitleOfCourtesy": Text NULL
+  key "Employees_pk": (EmployeeID)
+  fk "Employees_fk_0": (ReportsTo) -> "Employees"(EmployeeID)
+
+table "Order Details" rows=609283
+  col "Discount": Float NOT NULL
+  col "OrderID": Integer NOT NULL
+  col "ProductID": Integer NOT NULL
+  col "Quantity": Integer NOT NULL
+  col "UnitPrice": Float NOT NULL
+  key "Order Details_pk": (OrderID, ProductID)
+  fk "Order Details_fk_0": (ProductID) -> "Products"(ProductID)
+  fk "Order Details_fk_1": (OrderID) -> "Orders"(OrderID)
+
+table "Orders" rows=16282
+  col "CustomerID": Text NULL
+  col "EmployeeID": Integer NULL
+  col "Freight": Float NULL
+  col "OrderDate": Timestamp NULL
+  col "OrderID": Integer NOT NULL
+  col "RequiredDate": Timestamp NULL
+  col "ShipAddress": Text NULL
+  col "ShipCity": Text NULL
+  col "ShipCountry": Text NULL
+  col "ShipName": Text NULL
+  col "ShipPostalCode": Text NULL
+  col "ShipRegion": Text NULL
+  col "ShipVia": Integer NULL
+  col "ShippedDate": Timestamp NULL
+  key "Orders_pk": (OrderID)
+  fk "Orders_fk_0": (ShipVia) -> "Shippers"(ShipperID)
+  fk "Orders_fk_1": (CustomerID) -> "Customers"(CustomerID)
+  fk "Orders_fk_2": (EmployeeID) -> "Employees"(EmployeeID)
+
+table "Products" rows=77
+  col "CategoryID": Integer NULL
+  col "Discontinued": Text NOT NULL
+  col "ProductID": Integer NOT NULL
+  col "ProductName": Text NOT NULL
+  col "QuantityPerUnit": Text NULL
+  col "ReorderLevel": Integer NULL
+  col "SupplierID": Integer NULL
+  col "UnitPrice": Float NULL
+  col "UnitsInStock": Integer NULL
+  col "UnitsOnOrder": Integer NULL
+  key "Products_pk": (ProductID)
+  fk "Products_fk_0": (SupplierID) -> "Suppliers"(SupplierID)
+  fk "Products_fk_1": (CategoryID) -> "Categories"(CategoryID)
+
+table "Regions" rows=4
+  col "RegionDescription": Text NOT NULL
+  col "RegionID": Integer NOT NULL
+  key "Regions_pk": (RegionID)
+
+table "Shippers" rows=3
+  col "CompanyName": Text NOT NULL
+  col "Phone": Text NULL
+  col "ShipperID": Integer NOT NULL
+  key "Shippers_pk": (ShipperID)
+
+table "Suppliers" rows=29
+  col "Address": Text NULL
+  col "City": Text NULL
+  col "CompanyName": Text NOT NULL
+  col "ContactName": Text NULL
+  col "ContactTitle": Text NULL
+  col "Country": Text NULL
+  col "Fax": Text NULL
+  col "HomePage": Text NULL
+  col "Phone": Text NULL
+  col "PostalCode": Text NULL
+  col "Region": Text NULL
+  col "SupplierID": Integer NOT NULL
+  key "Suppliers_pk": (SupplierID)
+
+table "Territories" rows=53
+  col "RegionID": Integer NOT NULL
+  col "TerritoryDescription": Text NOT NULL
+  col "TerritoryID": Text NOT NULL
+  key "Territories_pk": (TerritoryID)
+  fk "Territories_fk_0": (RegionID) -> "Regions"(RegionID)

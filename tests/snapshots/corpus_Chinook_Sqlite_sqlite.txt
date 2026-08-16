@@ -1,0 +1,109 @@
+tables: 11
+
+table "Album" rows=347
+  col "AlbumId": Integer NOT NULL
+  col "ArtistId": Integer NOT NULL
+  col "Title": Text NOT NULL
+  key "Album_pk": (AlbumId)
+  fk "Album_fk_0": (ArtistId) -> "Artist"(ArtistId)
+
+table "Artist" rows=275
+  col "ArtistId": Integer NOT NULL
+  col "Name": Text NULL
+  key "Artist_pk": (ArtistId)
+
+table "Customer" rows=59
+  col "Address": Text NULL
+  col "City": Text NULL
+  col "Company": Text NULL
+  col "Country": Text NULL
+  col "CustomerId": Integer NOT NULL
+  col "Email": Text NOT NULL
+  col "Fax": Text NULL
+  col "FirstName": Text NOT NULL
+  col "LastName": Text NOT NULL
+  col "Phone": Text NULL
+  col "PostalCode": Text NULL
+  col "State": Text NULL
+  col "SupportRepId": Integer NULL
+  key "Customer_pk": (CustomerId)
+  fk "Customer_fk_0": (SupportRepId) -> "Employee"(EmployeeId)
+
+table "Employee" rows=8
+  col "Address": Text NULL
+  col "BirthDate": Timestamp NULL
+  col "City": Text NULL
+  col "Country": Text NULL
+  col "Email": Text NULL
+  col "EmployeeId": Integer NOT NULL
+  col "Fax": Text NULL
+  col "FirstName": Text NOT NULL
+  col "HireDate": Timestamp NULL
+  col "LastName": Text NOT NULL
+  col "Phone": Text NULL
+  col "PostalCode": Text NULL
+  col "ReportsTo": Integer NULL
+  col "State": Text NULL
+  col "Title": Text NULL
+  key "Employee_pk": (EmployeeId)
+  fk "Employee_fk_0": (ReportsTo) -> "Employee"(EmployeeId)
+
+table "Genre" rows=25
+  col "GenreId": Integer NOT NULL
+  col "Name": Text NULL
+  key "Genre_pk": (GenreId)
+
+table "Invoice" rows=412
+  col "BillingAddress": Text NULL
+  col "BillingCity": Text NULL
+  col "BillingCountry": Text NULL
+  col "BillingPostalCode": Text NULL
+  col "BillingState": Text NULL
+  col "CustomerId": Integer NOT NULL
+  col "InvoiceDate": Timestamp NOT NULL
+  col "InvoiceId": Integer NOT NULL
+  col "Total": Float NOT NULL
+  key "Invoice_pk": (InvoiceId)
+  fk "Invoice_fk_0": (CustomerId) -> "Customer"(CustomerId)
+
+table "InvoiceLine" rows=2240
+  col "InvoiceId": Integer NOT NULL
+  col "InvoiceLineId": Integer NOT NULL
+  col "Quantity": Integer NOT NULL
+  col "TrackId": Integer NOT NULL
+  col "UnitPrice": Float NOT NULL
+  key "InvoiceLine_pk": (InvoiceLineId)
+  fk "InvoiceLine_fk_0": (TrackId) -> "Track"(TrackId)
+  fk "InvoiceLine_fk_1": (InvoiceId) -> "Invoice"(InvoiceId)
+
+table "MediaType" rows=5
+  col "MediaTypeId": Integer NOT NULL
+  col "Name": Text NULL
+  key "MediaType_pk": (MediaTypeId)
+
+table "Playlist" rows=18
+  col "Name": Text NULL
+  col "PlaylistId": Integer NOT NULL
+  key "Playlist_pk": (PlaylistId)
+
+table "PlaylistTrack" rows=8715
+  col "PlaylistId": Integer NOT NULL
+  col "TrackId": Integer NOT NULL
+  key "PlaylistTrack_pk": (PlaylistId, TrackId)
+  fk "PlaylistTrack_fk_0": (TrackId) -> "Track"(TrackId)
+  fk "PlaylistTrack_fk_1": (PlaylistId) -> "Playlist"(PlaylistId)
+
+table "Track" rows=3503
+  col "AlbumId": Integer NULL
+  col "Bytes": Integer NULL
+  col "Composer": Text NULL
+  col "GenreId": Integer NULL
+  col "MediaTypeId": Integer NOT NULL
+  col "Milliseconds": Integer NOT NULL
+  col "Name": Text NOT NULL
+  col "TrackId": Integer NOT NULL
+  col "UnitPrice": Float NOT NULL
+  key "Track_pk": (TrackId)
+  fk "Track_fk_0": (MediaTypeId) -> "MediaType"(MediaTypeId)
+  fk "Track_fk_1": (GenreId) -> "Genre"(GenreId)
+  fk "Track_fk_2": (AlbumId) -> "Album"(AlbumId)

@@ -1,0 +1,24 @@
+tables: 3
+
+table "Order Details" rows=2
+  col "line": Integer NOT NULL
+  col "order_id": Integer NOT NULL
+  col "qty": Integer NULL
+  key "Order Details_pk": (order_id, line)
+
+table "child" rows=3
+  col "code": Text NULL
+  col "id": Integer NULL
+  col "manager_id": Integer NULL
+  col "p_a": Integer NULL
+  col "p_b": Text NULL
+  key "child_pk": (id)
+  key "child_code_unique": (code)
+  fk "child_fk_0": (p_a, p_b) -> "parent"(a, b)
+  fk "child_fk_1": (manager_id) -> "child"(id)
+
+table "parent" rows=2
+  col "a": Integer NOT NULL
+  col "b": Text NOT NULL
+  col "label": Text NULL
+  key "parent_pk": (a, b)
