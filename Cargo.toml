@@ -1,16 +1,16 @@
 [package]
 name = "dbcon"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
-description = "Universal connector for tabular data sources (PostgreSQL, SQLite, CSV, Parquet) with schema discovery and normalised row values."
+description = "Universal connector for tabular data sources (PostgreSQL, SQLite, DuckDB, CSV, Parquet, XLSX) with schema discovery and normalised row values."
 repository = "https://github.com/aarkue/dbcon"
 readme = "README.md"
 keywords = ["database", "postgres", "sqlite", "csv", "parquet"]
 categories = ["database"]
 
 [dependencies]
-sqlx = { git = "https://github.com/aarkue/sqlx-fix.git", branch = "sqlite3-fix", default-features = false, features = [
+sqlx = { version = "0.9", default-features = false, features = [
     "runtime-tokio",
     "tls-native-tls",
     "chrono",

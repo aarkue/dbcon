@@ -97,7 +97,7 @@ use std::ops::ControlFlow;
 #[cfg(feature = "sql")]
 use chrono::{FixedOffset, NaiveDateTime};
 #[cfg(feature = "sql")]
-use sqlx::{Column, ColumnIndex, Decode, Row, TypeInfo};
+use sqlx::{AssertSqlSafe, Column, ColumnIndex, Decode, Row, TypeInfo};
 
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -944,7 +944,7 @@ impl DataSourceInner {
                 match sql {
                     #[cfg(feature = "postgres")]
                     SQLPool::Postgres(pg_pool) => {
-                        let rows = block_on(sqlx::query(&query).fetch_all(pg_pool))??;
+                        let rows = block_on(sqlx::query(AssertSqlSafe(query.as_str())).fetch_all(pg_pool))??;
                         Ok(rows
                             .into_iter()
                             .map(|row| truncated(rows_to_values(row), columns.len()))
@@ -1114,7 +1114,7 @@ impl DataSourceInner {
                     // is called from inside it, synchronously.
                     block_on(async {
                         let mut buffer: Vec<NormalizedValue> = Vec::new();
-                        let mut stream = sqlx::query(&query).fetch(pool);
+                        let mut stream = sqlx::query(AssertSqlSafe(query.as_str())).fetch(pool);
                         while let Some(result) = stream.next().await {
                             let row = result?;
                             buffer.clear();
@@ -1267,7 +1267,7 @@ impl DataSourceInner {
                     SQLPool::Postgres(pool) => {
                         use futures::StreamExt;
                         block_on(async {
-                            let mut stream = sqlx::query(sql).fetch(pool);
+                            let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(pool);
                             while let Some(result) = stream.next().await {
                                 let row = result?;
                                 let named: Vec<(String, NormalizedValue)> = row
@@ -1342,7 +1342,7 @@ impl DataSourceInner {
             DataSourceInner::SQL(sql) => match sql {
                 #[cfg(feature = "postgres")]
                 SQLPool::Postgres(pool) => {
-                    let rows = block_on(sqlx::query(&select_distinct).fetch_all(pool))??;
+                    let rows = block_on(sqlx::query(AssertSqlSafe(select_distinct.as_str())).fetch_all(pool))??;
                     Ok(rows
                         .iter()
                         .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
@@ -1445,7 +1445,7 @@ impl DataSourceInner {
             DataSourceInner::SQL(sql) => match sql {
                 #[cfg(feature = "postgres")]
                 SQLPool::Postgres(pg_pool) => {
-                    let rows = block_on(sqlx::query(&select_all).fetch_all(pg_pool))??;
+                    let rows = block_on(sqlx::query(AssertSqlSafe(select_all.as_str())).fetch_all(pg_pool))??;
                     Ok(rows.into_iter().map(row_to_named_strings).collect())
                 }
             },

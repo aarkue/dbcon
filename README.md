@@ -2,7 +2,7 @@
 
 Universal Rust connector for tabular data sources.
 
-`dbcon` offers a single API over SQLite, PostgreSQL, CSV, and Parquet files. It provides:
+`dbcon` offers a single API over SQLite, PostgreSQL, DuckDB, CSV, Parquet, and XLSX files. It provides:
 
 - Automatic schema discovery (tables, columns, primary and foreign keys)
 - Row iteration with eager (`get_all_records`) and streaming (`scan`) modes
@@ -22,8 +22,10 @@ underneath, and it drives its own runtime once per scan.
 | ---------- | ---------------- | ------------ |
 | PostgreSQL | Yes              | Yes          |
 | SQLite     | Yes              | Yes          |
+| DuckDB     | Yes              | Yes          |
 | CSV        | Headers only     | Yes          |
 | Parquet    | Yes              | Yes          |
+| XLSX       | Headers only     | Yes          |
 
 ## Cargo features
 
@@ -36,9 +38,12 @@ dbcon = { version = "0.2", features = ["sqlite", "csv"] }
 | Feature | Backend | Pulls in |
 | --- | --- | --- |
 | `sqlite` | `sqlite:` | `rusqlite` |
+| `duckdb` | `duckdb:` | `duckdb` (links `libduckdb`) |
+| `duckdb-bundled` | as `duckdb`, building DuckDB from source | `duckdb/bundled` |
 | `postgres` | `postgres://`, `postgresql://` | `sqlx` + its PostgreSQL driver |
 | `csv` | `csv://`, `*.csv` | `csv` |
 | `parquet` | `parquet://`, `*.parquet` | `parquet` |
+| `xlsx` | `xlsx://`, `*.xlsx` (one table per sheet) | `calamine` |
 
 `sqlx` is optional and only `postgres` needs it. SQLite goes through `rusqlite`: sqlx
 gives every SQLite connection a dedicated OS thread and ships one channel message per row,
@@ -50,9 +55,11 @@ Measured with `cargo tree -e normal`, unique crates in the dependency graph:
 | none | 16 |
 | `csv` | 19 |
 | `sqlite` | 25 |
+| `xlsx` | 38 |
 | `parquet` | 59 |
-| `postgres` | 130 |
-| `sqlite,postgres,csv,parquet` | 173 |
+| `duckdb` | 76 |
+| `postgres` | 128 |
+| `sqlite,postgres,csv,parquet` | 169 |
 
 Connection strings:
 
@@ -60,10 +67,13 @@ Connection strings:
 postgres://user:password@host/db
 postgresql://user:password@host/db
 sqlite:path/to/file.db
+duckdb:path/to/file.duckdb
 csv://path/to/file.csv
 path/to/file.csv              # Bare .csv path is also accepted
 parquet://path/to/file.parquet
 path/to/file.parquet          # Bare .parquet path is also accepted
+xlsx://path/to/file.xlsx
+path/to/file.xlsx             # Bare .xlsx path is also accepted
 ```
 
 ## Usage
@@ -106,7 +116,7 @@ use `DataSource::new_any_without_discovery`.
 ## Running the tests
 
 ```sh
-cargo test --features sqlite,postgres,csv,parquet
+cargo test --features sqlite,postgres,csv,parquet,duckdb,xlsx
 ```
 
 Everything except the two targets below runs with no setup: SQLite discovery is covered
@@ -133,13 +143,10 @@ rather than passing silently; `DBCON_POSTGRES_REQUIRED=1` makes it a failure.
 ## Dependency notes
 
 Schema discovery is dbcon's own: `src/discovery/` queries `sqlite_master`/`PRAGMA` and
-`information_schema` directly. The `sea-schema` dependency, and with it the
-`[patch.crates-io]` entry consumers had to mirror, is gone.
+`information_schema` directly, with no external schema-introspection dependency.
 
-`dbcon` still depends on a patched fork of `sqlx`
-([aarkue/sqlx-fix](https://github.com/aarkue/sqlx-fix), branch `sqlite3-fix`), so it
-cannot be published to crates.io as-is. That dependency now only exists when the
-`postgres` feature is enabled; a `sqlite`-only build does not compile sqlx at all.
+`dbcon` depends on plain `sqlx` from crates.io, used only for the `postgres` backend; a
+`sqlite`-only build does not compile it at all.
 
 ## License
 
