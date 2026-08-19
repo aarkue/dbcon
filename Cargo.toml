@@ -1,6 +1,6 @@
 [package]
 name = "dbcon"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 license = "MIT"
 description = "Universal connector for tabular data sources (PostgreSQL, SQLite, DuckDB, CSV, Parquet, XLSX) with schema discovery and normalised row values."
@@ -48,7 +48,7 @@ sqlite = ["dep:rusqlite"]
 # needs a C++ toolchain but no system library.
 duckdb = ["dep:duckdb"]
 duckdb-bundled = ["duckdb", "duckdb/bundled"]
-postgres = ["sql", "sqlx/postgres"]
+postgres = ["sql", "sqlx/postgres", "sqlx/json"]
 csv = ["dep:csv"]
 parquet = ["dep:parquet", "dep:bytes"]
 # Pure Rust, so unlike `duckdb`/`postgres` this one also builds for wasm32 and can be read from

@@ -46,6 +46,27 @@ async fn a_semicolon_csv_in_memory_is_detected() {
     assert_eq!(source.tables[dbcon::CSV_TABLE_NAME].columns.len(), 3);
 }
 
+/// CSV has no native DISTINCT, so `unique` in `get_all_records` is applied in memory --
+/// same as XLSX. This is the CSV half of that behaviour.
+#[cfg(feature = "csv")]
+#[tokio::test]
+async fn unique_dedupes_csv_rows_in_memory() {
+    let bytes: &[u8] = b"a,b\n1,x\n1,x\n2,y\n1,x\n";
+    let source = DataSource::new_csv_bytes("dupes".to_string(), bytes.to_vec())
+        .await
+        .expect("open from bytes");
+
+    let all = source
+        .get_all_records(dbcon::CSV_TABLE_NAME, &["a", "b"], false)
+        .expect("all rows");
+    assert_eq!(all.len(), 4);
+
+    let deduped = source
+        .get_all_records(dbcon::CSV_TABLE_NAME, &["a", "b"], true)
+        .expect("unique rows");
+    assert_eq!(deduped.len(), 2);
+}
+
 /// `SourceData` reports a path only when there is one; in-memory bytes describe themselves.
 #[test]
 fn source_data_describes_itself() {
@@ -105,4 +126,46 @@ async fn a_parquet_file_held_in_memory_reports_its_schema_and_rows() {
         .get_first_rows(dbcon::PARQUET_TABLE_NAME, 10)
         .expect("rows");
     assert_eq!(rows.len(), 2);
+}
+
+/// Parquet has no native DISTINCT either, so `unique` in `get_all_records` is applied in
+/// memory the same way as CSV and XLSX -- the Parquet half of that behaviour.
+#[cfg(feature = "parquet")]
+#[tokio::test]
+async fn unique_dedupes_parquet_rows_in_memory() {
+    use parquet::file::properties::WriterProperties;
+    use parquet::file::writer::SerializedFileWriter;
+    use parquet::schema::parser::parse_message_type;
+    use std::sync::Arc;
+
+    let schema =
+        Arc::new(parse_message_type("message row { REQUIRED INT64 id; }").expect("schema"));
+    let mut buf = Vec::new();
+    {
+        let mut writer =
+            SerializedFileWriter::new(&mut buf, schema, Arc::new(WriterProperties::new()))
+                .expect("writer");
+        let mut group = writer.next_row_group().expect("row group");
+        let mut col = group.next_column().expect("column").expect("some column");
+        col.typed::<parquet::data_type::Int64Type>()
+            .write_batch(&[1i64, 1, 2, 1], None, None)
+            .expect("write");
+        col.close().expect("close column");
+        group.close().expect("close group");
+        writer.close().expect("close writer");
+    }
+
+    let source = DataSource::new_parquet_bytes("dupes".to_string(), buf)
+        .await
+        .expect("open parquet from bytes");
+
+    let all = source
+        .get_all_records(dbcon::PARQUET_TABLE_NAME, &["id"], false)
+        .expect("all rows");
+    assert_eq!(all.len(), 4);
+
+    let deduped = source
+        .get_all_records(dbcon::PARQUET_TABLE_NAME, &["id"], true)
+        .expect("unique rows");
+    assert_eq!(deduped.len(), 2);
 }

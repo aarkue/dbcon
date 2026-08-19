@@ -2,11 +2,11 @@
 //!
 //! A small universal connector for tabular data sources.
 //!
-//! dbcon offers a uniform API over SQLite, PostgreSQL, CSV, and Parquet files: schema
-//! discovery (tables, columns, primary and foreign keys), row iteration, streaming, and
-//! distinct-value queries. Values are exposed via a normalised [`NormalizedValue`] enum
-//! so callers can handle data from any backend without knowing the source-specific type
-//! system.
+//! dbcon offers a uniform API over SQLite, PostgreSQL, DuckDB, CSV, Parquet, and XLSX
+//! files: schema discovery (tables, columns, primary and foreign keys), row iteration,
+//! streaming, and distinct-value queries. Values are exposed via a normalised
+//! [`NormalizedValue`] enum so callers can handle data from any backend without knowing
+//! the source-specific type system.
 //!
 //! ## Quick start
 //!
@@ -86,9 +86,9 @@ pub mod xlsx;
 pub use duckdb::DuckDbSource;
 #[cfg(feature = "sqlite")]
 pub use sqlite::SqliteSource;
+pub use types::{NormalizedType, NormalizedValue, SqliteAffinity, sqlite_affinity};
 #[cfg(feature = "xlsx")]
 pub use xlsx::XlsxSource;
-pub use types::{NormalizedType, NormalizedValue, SqliteAffinity, sqlite_affinity};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -653,6 +653,14 @@ impl From<ParquetSource> for DataSourceInner {
     }
 }
 
+/// Quote a SQL identifier, doubling any embedded `"` so it survives interpolation --
+/// `a "b"` becomes `"a ""b"""`, the standard SQL escape every backend this crate targets
+/// (PostgreSQL, SQLite, DuckDB) honours.
+#[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
+fn quote_ident(name: &str) -> String {
+    format!("\"{}\"", name.replace('"', "\"\""))
+}
+
 /// Build a SELECT query string from columns, table, and optional ORDER BY.
 ///
 /// An **empty** `columns` selects the constant `1`, because `SELECT  FROM "t"` is not SQL in
@@ -673,15 +681,13 @@ fn build_select_query(
         if i > 0 {
             col_str.push_str(", ");
         }
-        col_str.push('"');
-        col_str.push_str(col);
-        col_str.push('"');
+        col_str.push_str(&quote_ident(col));
     }
     if columns.is_empty() {
         col_str.push('1');
     }
     let distinct = if unique { "DISTINCT " } else { "" };
-    let mut query = format!("SELECT {}{} FROM \"{}\"", distinct, col_str, table);
+    let mut query = format!("SELECT {}{} FROM {}", distinct, col_str, quote_ident(table));
     if let Some(order_cols) = order_by
         && !order_cols.is_empty()
     {
@@ -690,9 +696,7 @@ fn build_select_query(
             if i > 0 {
                 query.push_str(", ");
             }
-            query.push('"');
-            query.push_str(col);
-            query.push('"');
+            query.push_str(&quote_ident(col));
         }
     }
     if let Some(limit) = limit {
@@ -754,6 +758,7 @@ where
     bool: Decode<'d, D> + sqlx::Type<D>,
     chrono::DateTime<FixedOffset>: Decode<'d, D> + sqlx::Type<D>,
     chrono::NaiveDateTime: Decode<'d, D> + sqlx::Type<D>,
+    sqlx::types::Json<serde_json::Value>: Decode<'d, D> + sqlx::Type<D>,
 {
     let t = col.type_info().name();
     let t = NormalizedType::from_raw(t);
@@ -789,6 +794,10 @@ where
             } else {
                 NormalizedValue::Null
             }
+        }
+        NormalizedType::Json => {
+            let v = row.try_get::<Option<sqlx::types::Json<serde_json::Value>>, _>(i)?;
+            v.map(|sqlx::types::Json(value)| value).into()
         }
         _ => {
             // Dynamic column type with no static SQL type (e.g. `count(*)`, CASE WHEN).
@@ -830,6 +839,7 @@ where
     for<'d> bool: Decode<'d, D> + sqlx::Type<D>,
     for<'d> chrono::DateTime<FixedOffset>: Decode<'d, D> + sqlx::Type<D>,
     for<'d> chrono::NaiveDateTime: Decode<'d, D> + sqlx::Type<D>,
+    for<'d> sqlx::types::Json<serde_json::Value>: Decode<'d, D> + sqlx::Type<D>,
 {
     row.columns()
         .iter()
@@ -853,6 +863,7 @@ where
     for<'d> bool: Decode<'d, D> + sqlx::Type<D>,
     for<'d> chrono::DateTime<FixedOffset>: Decode<'d, D> + sqlx::Type<D>,
     for<'d> chrono::NaiveDateTime: Decode<'d, D> + sqlx::Type<D>,
+    for<'d> sqlx::types::Json<serde_json::Value>: Decode<'d, D> + sqlx::Type<D>,
 {
     row.columns()
         .iter()
@@ -944,7 +955,9 @@ impl DataSourceInner {
                 match sql {
                     #[cfg(feature = "postgres")]
                     SQLPool::Postgres(pg_pool) => {
-                        let rows = block_on(sqlx::query(AssertSqlSafe(query.as_str())).fetch_all(pg_pool))??;
+                        let rows = block_on(
+                            sqlx::query(AssertSqlSafe(query.as_str())).fetch_all(pg_pool),
+                        )??;
                         Ok(rows
                             .into_iter()
                             .map(|row| truncated(rows_to_values(row), columns.len()))
@@ -988,7 +1001,7 @@ impl DataSourceInner {
             }
             #[cfg(feature = "csv")]
             DataSourceInner::CSV(csv) => {
-                let _ = (table, unique);
+                let _ = table;
                 let mut rdr = csv.reader()?;
 
                 let headers = rdr.headers()?.clone();
@@ -1002,9 +1015,12 @@ impl DataSourceInner {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut result = Vec::new();
+                // Same in-memory dedup XLSX uses: CSV has no native DISTINCT, so `unique`
+                // rows are tracked by their stringified form as they are read.
+                let mut seen = unique.then(std::collections::HashSet::new);
                 for record in rdr.into_records() {
                     let record = record?;
-                    let row = indices
+                    let row: Vec<NormalizedValue> = indices
                         .iter()
                         .map(|&i| {
                             record
@@ -1013,6 +1029,11 @@ impl DataSourceInner {
                                 .unwrap_or_default()
                         })
                         .collect();
+                    if let Some(seen) = seen.as_mut()
+                        && !seen.insert(format!("{row:?}"))
+                    {
+                        continue;
+                    }
                     result.push(row);
                     if let Some(limit) = limit
                         && result.len() >= limit
@@ -1024,8 +1045,7 @@ impl DataSourceInner {
             }
             #[cfg(feature = "parquet")]
             DataSourceInner::Parquet(p) => {
-                // `unique` is ignored: Parquet has no native DISTINCT, same as CSV.
-                let _ = unique;
+                let _ = table;
                 let reader = p.open()?;
                 let schema = reader.metadata().file_metadata().schema();
                 let field_names: Vec<&str> = schema.get_fields().iter().map(|f| f.name()).collect();
@@ -1044,6 +1064,8 @@ impl DataSourceInner {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut result: Vec<Vec<NormalizedValue>> = Vec::new();
+                // Same in-memory dedup XLSX uses: Parquet has no native DISTINCT either.
+                let mut seen = unique.then(std::collections::HashSet::new);
                 for row in reader.get_row_iter(None)? {
                     let row = row?;
                     let fields: Vec<&Field> = row.get_column_iter().map(|(_, f)| f).collect();
@@ -1056,6 +1078,11 @@ impl DataSourceInner {
                                 .unwrap_or_default()
                         })
                         .collect();
+                    if let Some(seen) = seen.as_mut()
+                        && !seen.insert(format!("{values:?}"))
+                    {
+                        continue;
+                    }
                     result.push(values);
                     if let Some(limit) = limit
                         && result.len() >= limit
@@ -1063,7 +1090,6 @@ impl DataSourceInner {
                         break;
                     }
                 }
-                let _ = table;
                 Ok(result)
             }
             #[cfg(any(
@@ -1325,7 +1351,11 @@ impl DataSourceInner {
     /// Get distinct values of a single column
     pub fn get_distinct_values(&self, table: &str, column: &str) -> anyhow::Result<Vec<String>> {
         #[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
-        let select_distinct = format!("SELECT DISTINCT \"{}\" FROM \"{}\"", column, table);
+        let select_distinct = format!(
+            "SELECT DISTINCT {} FROM {}",
+            quote_ident(column),
+            quote_ident(table)
+        );
         match self {
             // With no backend feature enabled `DataSourceInner` is uninhabited, so this
             // is the only arm and it is unreachable. With any feature on it is cfg'd out.
@@ -1342,7 +1372,9 @@ impl DataSourceInner {
             DataSourceInner::SQL(sql) => match sql {
                 #[cfg(feature = "postgres")]
                 SQLPool::Postgres(pool) => {
-                    let rows = block_on(sqlx::query(AssertSqlSafe(select_distinct.as_str())).fetch_all(pool))??;
+                    let rows = block_on(
+                        sqlx::query(AssertSqlSafe(select_distinct.as_str())).fetch_all(pool),
+                    )??;
                     Ok(rows
                         .iter()
                         .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
@@ -1426,8 +1458,8 @@ impl DataSourceInner {
     ) -> anyhow::Result<Vec<HashMap<String, String>>> {
         #[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
         let select_all = match limit {
-            Some(n) => format!("SELECT * FROM \"{}\" LIMIT {}", table, n),
-            None => format!("SELECT * FROM \"{}\"", table),
+            Some(n) => format!("SELECT * FROM {} LIMIT {}", quote_ident(table), n),
+            None => format!("SELECT * FROM {}", quote_ident(table)),
         };
         match self {
             // With no backend feature enabled `DataSourceInner` is uninhabited, so this
@@ -1445,7 +1477,9 @@ impl DataSourceInner {
             DataSourceInner::SQL(sql) => match sql {
                 #[cfg(feature = "postgres")]
                 SQLPool::Postgres(pg_pool) => {
-                    let rows = block_on(sqlx::query(AssertSqlSafe(select_all.as_str())).fetch_all(pg_pool))??;
+                    let rows = block_on(
+                        sqlx::query(AssertSqlSafe(select_all.as_str())).fetch_all(pg_pool),
+                    )??;
                     Ok(rows.into_iter().map(row_to_named_strings).collect())
                 }
             },
@@ -2099,6 +2133,48 @@ impl SQLPool {
 
 #[cfg(test)]
 mod test {
+    #[cfg(any(feature = "sql", feature = "sqlite", feature = "duckdb"))]
+    #[test]
+    fn quote_ident_doubles_embedded_double_quotes() {
+        use crate::quote_ident;
+        assert_eq!(quote_ident("orders"), "\"orders\"");
+        assert_eq!(quote_ident("Order Details"), "\"Order Details\"");
+        assert_eq!(quote_ident(r#"a "b" c"#), "\"a \"\"b\"\" c\"");
+    }
+
+    /// A table (and column) name containing an embedded `"` must round-trip through
+    /// `build_select_query`'s identifier quoting, not just through names with a space.
+    #[cfg(feature = "sqlite")]
+    #[tokio::test]
+    async fn table_and_column_names_with_an_embedded_quote_round_trip() -> anyhow::Result<()> {
+        use crate::quote_ident;
+        let table = r#"a "b""#;
+        let column = r#"n "m""#;
+        let ds = crate::DataSource::new_sqlite("x".into(), "sqlite::memory:".into()).await?;
+        ds.for_each_row_sql(
+            &format!(
+                "CREATE TABLE {} (\"id\" INTEGER, {} TEXT)",
+                quote_ident(table),
+                quote_ident(column)
+            ),
+            &mut |_| {},
+        )?;
+        ds.for_each_row_sql(
+            &format!("INSERT INTO {} VALUES (1, 'x')", quote_ident(table)),
+            &mut |_| {},
+        )?;
+
+        let rows = ds.get_all_records(table, &["id", column], false)?;
+        assert_eq!(
+            rows,
+            vec![vec![
+                crate::NormalizedValue::Integer(1),
+                crate::NormalizedValue::Text("x".into())
+            ]]
+        );
+        Ok(())
+    }
+
     #[cfg(feature = "csv")]
     #[test]
     fn delimiter_spec_parses_known_aliases() {

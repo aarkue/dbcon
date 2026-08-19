@@ -32,7 +32,7 @@ underneath, and it drives its own runtime once per scan.
 Every backend is a feature and **nothing is on by default** - pick what you need:
 
 ```toml
-dbcon = { version = "0.2", features = ["sqlite", "csv"] }
+dbcon = { version = "0.3", features = ["sqlite", "csv"] }
 ```
 
 | Feature | Backend | Pulls in |

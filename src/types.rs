@@ -144,6 +144,12 @@ impl From<chrono::DateTime<chrono::FixedOffset>> for NormalizedValue {
     }
 }
 
+impl From<serde_json::Value> for NormalizedValue {
+    fn from(value: serde_json::Value) -> Self {
+        Self::Json(value)
+    }
+}
+
 /// Read the datetime spellings a text-carried timestamp may arrive in, widest first.
 ///
 /// `strftime`-style output (`2024-01-02 03:04:05`) has no zone, ISO 8601 output has a `T`
@@ -439,7 +445,21 @@ mod tests {
         assert_eq!(t("DOUBLE PRECISION"), NormalizedType::Float);
         assert_eq!(t("character varying"), NormalizedType::Text);
         assert_eq!(t("BOOL"), NormalizedType::Boolean);
+        assert_eq!(t("json"), NormalizedType::Json);
         assert_eq!(t("jsonb"), NormalizedType::Json);
+    }
+
+    /// Untestable against a live server here, but the two pieces that don't need one:
+    /// the raw-type mapping above, and that a `Json` value round-trips through `Display`
+    /// the way `extract_row_column_value`'s Postgres arm relies on for string callers.
+    #[test]
+    fn json_value_displays_as_its_json_text() {
+        let v = NormalizedValue::Json(serde_json::json!({"a": 1, "b": [true, null]}));
+        assert_eq!(v.to_string(), r#"{"a":1,"b":[true,null]}"#);
+        assert_eq!(
+            NormalizedValue::from(serde_json::json!(42)).to_string(),
+            "42"
+        );
     }
 
     #[test]
