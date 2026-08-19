@@ -113,6 +113,26 @@ use parquet::schema::types::Type as ParquetType;
 #[cfg(feature = "parquet")]
 use std::fs::File;
 
+/// The backend features enabled in *this build*, as stable ids matching the Cargo feature
+/// names (`"postgres"`, `"sqlite"`, `"duckdb"`, `"csv"`, `"parquet"`, `"xlsx"`). Lets a UI
+/// offer exactly the source kinds this binary can actually open instead of hardcoding them.
+pub fn enabled_backends() -> &'static [&'static str] {
+    &[
+        #[cfg(feature = "postgres")]
+        "postgres",
+        #[cfg(feature = "sqlite")]
+        "sqlite",
+        #[cfg(feature = "duckdb")]
+        "duckdb",
+        #[cfg(feature = "csv")]
+        "csv",
+        #[cfg(feature = "parquet")]
+        "parquet",
+        #[cfg(feature = "xlsx")]
+        "xlsx",
+    ]
+}
+
 /// The connection-string forms *this build* accepts, which depends on which backend
 /// features are enabled. Used to make the "unsupported data source" error name the
 /// feature set rather than a fixed list the binary may not actually support.
