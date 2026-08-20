@@ -1,6 +1,6 @@
 [package]
 name = "dbcon"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 license = "MIT"
 description = "Universal connector for tabular data sources (PostgreSQL, SQLite, DuckDB, CSV, Parquet, XLSX) with schema discovery and normalised row values."
@@ -19,10 +19,7 @@ rusqlite = { version = "0.38", features = [
     "bundled",
     "column_decltype",
 ], optional = true }
-# `bundled` as `rusqlite` above, so neither backend needs a system library installed or kept
-# version-matched. Unlike SQLite's, DuckDB's amalgamation is a multi-minute C++ compile on
-# every clean build.
-duckdb = { version = "1.2.1", features = ["chrono", "bundled"], optional = true }
+duckdb = { version = "1.2.1", features = ["chrono"], optional = true }
 anyhow = "1.0"
 futures = { version = "0.3", optional = true }
 # Only for `sql`: PostgreSQL is the one backend that genuinely awaits, and the blocking public
@@ -46,6 +43,7 @@ default = []
 sql = ["dep:sqlx", "dep:futures", "dep:tokio"]
 sqlite = ["dep:rusqlite"]
 duckdb = ["dep:duckdb"]
+duckdb-bundled = ["duckdb", "duckdb/bundled"]
 postgres = ["sql", "sqlx/postgres", "sqlx/json"]
 csv = ["dep:csv"]
 parquet = ["dep:parquet", "dep:bytes"]
