@@ -8,12 +8,11 @@
 use dbcon::{DataSource, SourceData};
 
 #[cfg(feature = "csv")]
-#[tokio::test]
-async fn a_csv_held_in_memory_reports_its_schema_and_rows() {
+#[test]
+fn a_csv_held_in_memory_reports_its_schema_and_rows() {
     let bytes: &[u8] = b"order_id,placed_at\no1,2024-01-02\no2,2024-01-03\n";
-    let source = DataSource::new_csv_bytes("orders".to_string(), bytes.to_vec())
-        .await
-        .expect("open from bytes");
+    let source =
+        DataSource::new_csv_bytes("orders".to_string(), bytes.to_vec()).expect("open from bytes");
 
     let table = source
         .tables
@@ -37,24 +36,23 @@ async fn a_csv_held_in_memory_reports_its_schema_and_rows() {
 
 /// The delimiter is detected from the contents, not assumed to be a comma.
 #[cfg(feature = "csv")]
-#[tokio::test]
-async fn a_semicolon_csv_in_memory_is_detected() {
+#[test]
+fn a_semicolon_csv_in_memory_is_detected() {
     let bytes: &[u8] = b"a;b;c\n1;2;3\n4;5;6\n";
     let csv = dbcon::CSVSource::from_bytes_autodetect(bytes.to_vec());
     assert_eq!(csv.delimiter, b';');
-    let source = DataSource::new("s".to_string(), csv).await.expect("open");
+    let source = DataSource::new("s".to_string(), csv).expect("open");
     assert_eq!(source.tables[dbcon::CSV_TABLE_NAME].columns.len(), 3);
 }
 
 /// CSV has no native DISTINCT, so `unique` in `get_all_records` is applied in memory --
 /// same as XLSX. This is the CSV half of that behaviour.
 #[cfg(feature = "csv")]
-#[tokio::test]
-async fn unique_dedupes_csv_rows_in_memory() {
+#[test]
+fn unique_dedupes_csv_rows_in_memory() {
     let bytes: &[u8] = b"a,b\n1,x\n1,x\n2,y\n1,x\n";
-    let source = DataSource::new_csv_bytes("dupes".to_string(), bytes.to_vec())
-        .await
-        .expect("open from bytes");
+    let source =
+        DataSource::new_csv_bytes("dupes".to_string(), bytes.to_vec()).expect("open from bytes");
 
     let all = source
         .get_all_records(dbcon::CSV_TABLE_NAME, &["a", "b"], false)
@@ -83,8 +81,8 @@ fn source_data_describes_itself() {
 /// file. This is the case that could not work at all before: `SerializedFileReader` was built from
 /// a `File`, so bytes had to be spilled to disk first.
 #[cfg(feature = "parquet")]
-#[tokio::test]
-async fn a_parquet_file_held_in_memory_reports_its_schema_and_rows() {
+#[test]
+fn a_parquet_file_held_in_memory_reports_its_schema_and_rows() {
     use parquet::file::properties::WriterProperties;
     use parquet::file::writer::SerializedFileWriter;
     use parquet::schema::parser::parse_message_type;
@@ -111,9 +109,8 @@ async fn a_parquet_file_held_in_memory_reports_its_schema_and_rows() {
         writer.close().expect("close writer");
     }
 
-    let source = DataSource::new_parquet_bytes("nums".to_string(), buf)
-        .await
-        .expect("open parquet from bytes");
+    let source =
+        DataSource::new_parquet_bytes("nums".to_string(), buf).expect("open parquet from bytes");
 
     let table = source
         .tables
@@ -131,8 +128,8 @@ async fn a_parquet_file_held_in_memory_reports_its_schema_and_rows() {
 /// Parquet has no native DISTINCT either, so `unique` in `get_all_records` is applied in
 /// memory the same way as CSV and XLSX -- the Parquet half of that behaviour.
 #[cfg(feature = "parquet")]
-#[tokio::test]
-async fn unique_dedupes_parquet_rows_in_memory() {
+#[test]
+fn unique_dedupes_parquet_rows_in_memory() {
     use parquet::file::properties::WriterProperties;
     use parquet::file::writer::SerializedFileWriter;
     use parquet::schema::parser::parse_message_type;
@@ -155,9 +152,8 @@ async fn unique_dedupes_parquet_rows_in_memory() {
         writer.close().expect("close writer");
     }
 
-    let source = DataSource::new_parquet_bytes("dupes".to_string(), buf)
-        .await
-        .expect("open parquet from bytes");
+    let source =
+        DataSource::new_parquet_bytes("dupes".to_string(), buf).expect("open parquet from bytes");
 
     let all = source
         .get_all_records(dbcon::PARQUET_TABLE_NAME, &["id"], false)

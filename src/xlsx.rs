@@ -184,10 +184,7 @@ impl XlsxSource {
                     .iter()
                     .position(|h| h == want.as_ref())
                     .ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "Column '{}' not found in sheet '{sheet}'",
-                            want.as_ref()
-                        )
+                        anyhow::anyhow!("Column '{}' not found in sheet '{sheet}'", want.as_ref())
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -300,15 +297,15 @@ pub(crate) fn decode(cell: &Data) -> NormalizedValue {
         Data::Bool(b) => NormalizedValue::Boolean(*b),
         // Format-marked, so this is the one place a serial becomes an instant. `as_datetime`
         // carries Excel's 1900 leap-year quirk, which is why the conversion is not redone here.
-        Data::DateTime(dt) => dt
-            .as_datetime()
-            .map_or(NormalizedValue::Null, |d| {
-                NormalizedValue::Timestamp(d.and_utc().fixed_offset())
-            }),
+        Data::DateTime(dt) => dt.as_datetime().map_or(NormalizedValue::Null, |d| {
+            NormalizedValue::Timestamp(d.and_utc().fixed_offset())
+        }),
         // Already a datetime string in the file. Parsed when it parses, kept verbatim when it does
         // not, since a cell this cascade cannot read still carries what the writer wrote.
-        Data::DateTimeIso(s) => crate::types::parse_timestamp(s)
-            .map_or_else(|| NormalizedValue::Text(s.clone()), NormalizedValue::Timestamp),
+        Data::DateTimeIso(s) => crate::types::parse_timestamp(s).map_or_else(
+            || NormalizedValue::Text(s.clone()),
+            NormalizedValue::Timestamp,
+        ),
         // A duration is not an instant, so it stays text.
         Data::DurationIso(s) => NormalizedValue::Text(s.clone()),
         // `#REF!`, `#N/A` and friends. Carried as text rather than as null: a formula that failed
@@ -409,7 +406,11 @@ mod tests {
             for &b in bytes {
                 c ^= u32::from(b);
                 for _ in 0..8 {
-                    c = if c & 1 == 1 { 0xedb8_8320 ^ (c >> 1) } else { c >> 1 };
+                    c = if c & 1 == 1 {
+                        0xedb8_8320 ^ (c >> 1)
+                    } else {
+                        c >> 1
+                    };
                 }
             }
             c ^ 0xffff_ffff
@@ -520,9 +521,7 @@ mod tests {
     #[test]
     fn a_whole_number_does_not_come_back_with_a_decimal_point() {
         let s = source(&[("t", &[&["id"], &["5"]])]);
-        let rows = s
-            .rows("t", &["id".to_string()], None)
-            .expect("rows read");
+        let rows = s.rows("t", &["id".to_string()], None).expect("rows read");
         assert_eq!(rows[0][0], NormalizedValue::Integer(5));
         assert_eq!(rows[0][0].to_string(), "5");
     }
@@ -602,7 +601,10 @@ mod tests {
         let rows = s.rows("t", &cols, None).expect("rows read");
         assert_eq!(
             rows[0],
-            vec![NormalizedValue::Integer(42), NormalizedValue::Integer(45355)],
+            vec![
+                NormalizedValue::Integer(42),
+                NormalizedValue::Integer(45355)
+            ],
             "a number with no date format must not become a date"
         );
     }

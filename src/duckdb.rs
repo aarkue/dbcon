@@ -16,8 +16,8 @@ use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::sync::Mutex;
 
-use duckdb::types::{TimeUnit, ValueRef};
 use duckdb::Connection;
+use duckdb::types::{TimeUnit, ValueRef};
 
 use crate::{NormalizedType, NormalizedValue};
 
@@ -335,7 +335,10 @@ mod tests {
     fn an_integer_wider_than_i64_is_carried_as_text() {
         let s = source();
         let rows = s
-            .rows("SELECT CAST(170141183460469231731687303715884105727 AS HUGEINT)", None)
+            .rows(
+                "SELECT CAST(170141183460469231731687303715884105727 AS HUGEINT)",
+                None,
+            )
             .expect("query runs");
         assert_eq!(
             rows[0][0],
@@ -427,7 +430,10 @@ mod tests {
         assert_eq!(normalize_type("HUGEINT"), NormalizedType::Integer);
         assert_eq!(normalize_type("DECIMAL(18,2)"), NormalizedType::Float);
         assert_eq!(normalize_type("VARCHAR(64)"), NormalizedType::Text);
-        assert_eq!(normalize_type("TIMESTAMP WITH TIME ZONE"), NormalizedType::Timestamp);
+        assert_eq!(
+            normalize_type("TIMESTAMP WITH TIME ZONE"),
+            NormalizedType::Timestamp
+        );
         assert_eq!(normalize_type("TIMESTAMP_MS"), NormalizedType::Timestamp);
         assert_eq!(normalize_type("BOOLEAN"), NormalizedType::Boolean);
         assert_eq!(normalize_type("LOGICAL"), NormalizedType::Boolean);

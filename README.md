@@ -10,11 +10,11 @@ Universal Rust connector for tabular data sources.
 - Backend-agnostic `NormalizedValue` and `NormalizedType` so callers don't have to
   branch on source type
 
-**Connecting and discovering a schema are `async`; reading rows is not.** Connections
-involve network round trips and happen once. A row scan is a tight loop over a callback
-with no await point between two rows, so `async` there would buy a caller nothing while
-forcing every synchronous consumer to own a runtime. Only PostgreSQL is genuinely async
-underneath, and it drives its own runtime once per scan.
+**Every public method is blocking, including connecting.** SQLite, DuckDB, CSV, Parquet and
+XLSX are blocking code all the way down, so an `async` signature over them would suspend at no
+point while forcing every synchronous consumer to own a runtime. Only PostgreSQL genuinely
+awaits: `sqlx` is async-only, so its futures are driven on a short-lived runtime inside the
+call, and `tokio` is pulled in by the `sql` feature rather than by every build.
 
 ## Supported sources
 
@@ -38,8 +38,7 @@ dbcon = { version = "0.3", features = ["sqlite", "csv"] }
 | Feature | Backend | Pulls in |
 | --- | --- | --- |
 | `sqlite` | `sqlite:` | `rusqlite` |
-| `duckdb` | `duckdb:` | `duckdb` (links `libduckdb`) |
-| `duckdb-bundled` | as `duckdb`, building DuckDB from source | `duckdb/bundled` |
+| `duckdb` | `duckdb:` | `duckdb` (bundled, built from source) |
 | `postgres` | `postgres://`, `postgresql://` | `sqlx` + its PostgreSQL driver |
 | `csv` | `csv://`, `*.csv` | `csv` |
 | `parquet` | `parquet://`, `*.parquet` | `parquet` |
@@ -82,20 +81,18 @@ path/to/file.xlsx             # Bare .xlsx path is also accepted
 use dbcon::DataSource;
 use std::ops::ControlFlow;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Auto-detect source type from the connection string. Connecting is async.
+fn main() -> anyhow::Result<()> {
+    // Auto-detect source type from the connection string.
     let ds = DataSource::new_any(
         "example".into(),
         "sqlite:orders.db".into(),
-    ).await?;
+    )?;
 
     // Inspect schema
     for table in ds.get_all_tables() {
         println!("Table: {table}");
     }
 
-    // Reading rows is not async.
     let rows = ds.get_all_records("orders", &["id", "customer"], false)?;
     println!("{} rows", rows.len());
 

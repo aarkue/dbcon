@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 
-use crate::duckdb::{normalize_type, DuckDbSource};
+use crate::duckdb::{DuckDbSource, normalize_type};
 use crate::{DataColumnInfo, DataTableInfo, ForeignKey, PrimaryKey};
 
 /// The schema dbcon discovers when none is given. `DuckDB` puts a `CREATE TABLE` with no schema
@@ -60,18 +60,15 @@ pub(crate) fn discover(
         let [table, name, data_type, nullable] = &row[..] else {
             continue;
         };
-        columns_by_table
-            .entry(table.clone())
-            .or_default()
-            .insert(
-                name.clone(),
-                DataColumnInfo {
-                    name: name.clone(),
-                    col_type: normalize_type(data_type),
-                    // `information_schema` spells this "YES"/"NO".
-                    is_nullable: nullable.eq_ignore_ascii_case("YES"),
-                },
-            );
+        columns_by_table.entry(table.clone()).or_default().insert(
+            name.clone(),
+            DataColumnInfo {
+                name: name.clone(),
+                col_type: normalize_type(data_type),
+                // `information_schema` spells this "YES"/"NO".
+                is_nullable: nullable.eq_ignore_ascii_case("YES"),
+            },
+        );
     }
 
     let constraints = constraint_rows(source, schema)?;
@@ -176,7 +173,14 @@ fn constraint_rows(source: &DuckDbSource, schema: &str) -> anyhow::Result<Vec<Co
     Ok(rows
         .iter()
         .filter_map(|row| {
-            let [table, kind, name, columns, referenced_table, referenced_columns] = &row[..]
+            let [
+                table,
+                kind,
+                name,
+                columns,
+                referenced_table,
+                referenced_columns,
+            ] = &row[..]
             else {
                 return None;
             };
@@ -232,7 +236,10 @@ mod tests {
         assert_eq!(orders.columns["id"].col_type, NormalizedType::Integer);
         assert_eq!(orders.columns["total"].col_type, NormalizedType::Float);
         assert_eq!(orders.columns["note"].col_type, NormalizedType::Text);
-        assert!(!orders.columns["id"].is_nullable, "a primary key is NOT NULL");
+        assert!(
+            !orders.columns["id"].is_nullable,
+            "a primary key is NOT NULL"
+        );
         assert!(orders.columns["note"].is_nullable);
     }
 

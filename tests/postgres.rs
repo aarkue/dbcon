@@ -13,8 +13,8 @@
 
 use dbcon::DataSource;
 
-#[tokio::test]
-async fn postgres_discovery_against_a_live_server() {
+#[test]
+fn postgres_discovery_against_a_live_server() {
     dotenvy::dotenv().ok();
     let required = std::env::var("DBCON_POSTGRES_REQUIRED").as_deref() == Ok("1");
     let Ok(url) = std::env::var("POSTGRES_URL") else {
@@ -26,7 +26,7 @@ async fn postgres_discovery_against_a_live_server() {
         return;
     };
 
-    let ds = match DataSource::new_any("postgres".into(), url).await {
+    let ds = match DataSource::new_any("postgres".into(), url) {
         Ok(ds) => ds,
         Err(e) => {
             let msg = format!("POSTGRES_URL is set but unusable ({e}); discovery NOT exercised");

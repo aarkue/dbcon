@@ -15,11 +15,9 @@ fn orders_and_items() -> TableSetSource {
     set
 }
 
-#[tokio::test]
-async fn every_member_becomes_a_table_under_the_name_the_caller_gave_it() {
-    let source = DataSource::new_table_set("bundle".to_string(), orders_and_items())
-        .await
-        .expect("open");
+#[test]
+fn every_member_becomes_a_table_under_the_name_the_caller_gave_it() {
+    let source = DataSource::new_table_set("bundle".to_string(), orders_and_items()).expect("open");
 
     let mut names: Vec<_> = source.tables.keys().cloned().collect();
     names.sort();
@@ -31,11 +29,9 @@ async fn every_member_becomes_a_table_under_the_name_the_caller_gave_it() {
 }
 
 /// Each member keeps its own delimiter: one comma-separated, one semicolon-separated.
-#[tokio::test]
-async fn rows_are_read_from_the_file_the_named_table_maps_to() {
-    let source = DataSource::new_table_set("bundle".to_string(), orders_and_items())
-        .await
-        .expect("open");
+#[test]
+fn rows_are_read_from_the_file_the_named_table_maps_to() {
+    let source = DataSource::new_table_set("bundle".to_string(), orders_and_items()).expect("open");
 
     let orders = source.get_first_rows("orders", 10).expect("orders");
     assert_eq!(orders.len(), 2);
@@ -51,11 +47,9 @@ async fn rows_are_read_from_the_file_the_named_table_maps_to() {
     assert_eq!(skus.len(), 2, "{skus:?}");
 }
 
-#[tokio::test]
-async fn an_unknown_table_is_an_error_naming_it() {
-    let source = DataSource::new_table_set("bundle".to_string(), orders_and_items())
-        .await
-        .expect("open");
+#[test]
+fn an_unknown_table_is_an_error_naming_it() {
+    let source = DataSource::new_table_set("bundle".to_string(), orders_and_items()).expect("open");
     let err = source
         .get_first_rows("customers", 1)
         .expect_err("no such table");

@@ -57,11 +57,6 @@ fn main() {
     };
 
     let root = PathBuf::from(root);
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .expect("tokio runtime");
-
     let mut files: Vec<(PathBuf, bool)> = Vec::new();
     let mut failures: Vec<String> = Vec::new();
     for name in DATASET_FILES {
@@ -95,7 +90,7 @@ fn main() {
     let mut checked = 0usize;
     for (path, is_ocel) in &files {
         let started = Instant::now();
-        match runtime.block_on(check_file(path, *is_ocel, budget)) {
+        match check_file(path, *is_ocel, budget) {
             Ok(summary) => {
                 checked += 1;
                 println!(
@@ -160,13 +155,12 @@ fn ocel_files(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-async fn check_file(path: &Path, is_ocel: bool, budget: u64) -> Result<String, String> {
+fn check_file(path: &Path, is_ocel: bool, budget: u64) -> Result<String, String> {
     // Read-only: the corpus lives outside the repo and several files are ~700 MB, so
     // discovery must not create a -wal sidecar next to them.
     let url = format!("sqlite://{}?mode=ro", path.display());
-    let ds = DataSource::new_any(name_of(path), url)
-        .await
-        .map_err(|e| format!("connect/discover: {e}"))?;
+    let ds =
+        DataSource::new_any(name_of(path), url).map_err(|e| format!("connect/discover: {e}"))?;
 
     // `count(*)` is cheap and always recorded, so the snapshot pins row counts even for
     // files too large to iterate row by row.

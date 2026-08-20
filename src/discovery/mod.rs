@@ -10,9 +10,9 @@
 //! Adding a backend means adding a module here with a `discover` function; nothing else
 //! in the crate needs to know about it beyond one dispatch arm.
 
-#[cfg(feature = "postgres")]
-pub(crate) mod postgres;
 #[cfg(feature = "duckdb")]
 pub(crate) mod duckdb;
+#[cfg(feature = "postgres")]
+pub(crate) mod postgres;
 #[cfg(feature = "sqlite")]
 pub(crate) mod sqlite;

@@ -13,29 +13,33 @@
 //! ```no_run
 //! use dbcon::DataSource;
 //!
-//! # async fn run() -> anyhow::Result<()> {
-//! let ds = DataSource::new_any("example".into(), "sqlite:path/to/db.sqlite".into()).await?;
+//! # fn run() -> anyhow::Result<()> {
+//! let ds = DataSource::new_any("example".into(), "sqlite:path/to/db.sqlite".into())?;
 //! for table in ds.get_all_tables() {
 //!     println!("{table}");
 //! }
 //! # Ok(()) }
 //! ```
 //!
-//! ## Async where it earns its keep, synchronous where it does not
+//! ## Synchronous, because the backends are
 //!
-//! **Connecting and discovering a schema are `async`. Reading rows is not.**
+//! **Every public method is blocking, including connecting and discovering a schema.**
 //!
-//! Connection setup and schema discovery involve network round trips and happen once per
-//! source, so they belong in async. Reading rows is a tight loop over a callback --
-//! [`DataSource::scan`] takes `&mut dyn FnMut(&[NormalizedValue]) -> ControlFlow<()>`, and
-//! there is no await point between two rows for a caller to interleave anything with. Three
-//! of the four backends (SQLite via `rusqlite`, CSV, Parquet) are blocking code all the way
-//! down; only PostgreSQL is genuinely async, and it drives its own runtime once per scan.
+//! SQLite via `rusqlite`, DuckDB, CSV, Parquet and XLSX are blocking code all the way down, so
+//! an `async` signature over them would suspend at no point and force every synchronous
+//! consumer to own a runtime for nothing. Reading rows is a tight loop over a callback --
+//! [`DataSource::scan`] takes `&mut dyn FnMut(&[NormalizedValue]) -> ControlFlow<()>` -- with no
+//! await point between two rows for a caller to interleave anything with.
 //!
-//! An async caller is therefore responsible for the bridge, because only it knows its own
-//! runtime: wrap a scan in `tokio::task::spawn_blocking`. Calling a row-reading method from
-//! inside a runtime with a PostgreSQL source is refused with an error naming that, rather
-//! than panicking inside Tokio.
+//! PostgreSQL is the one backend that genuinely awaits. `sqlx` is async-only, so its futures are
+//! driven on a short-lived runtime inside the call; `tokio` comes in with the `sql` feature and
+//! is absent from a build without it.
+//!
+//! An async caller owns the bridge, because only it knows its own runtime: wrap a scan in
+//! `tokio::task::spawn_blocking`. Connecting needs no such care -- it hands its work to its own
+//! thread, so it is safe even from a Tokio worker. Calling a row-reading method from inside a
+//! runtime with a PostgreSQL source is refused with an error naming that, rather than panicking
+//! inside Tokio.
 //!
 //! ## Feature flags
 //!
@@ -44,8 +48,7 @@
 //! | Feature | Enables | Pulls in |
 //! |---|---|---|
 //! | `sqlite` | `sqlite:` connection strings | `rusqlite` |
-//! | `duckdb` | `duckdb:` connection strings | `duckdb` (links `libduckdb`) |
-//! | `duckdb-bundled` | as `duckdb`, building `DuckDB` from source | `duckdb/bundled` |
+//! | `duckdb` | `duckdb:` connection strings | `duckdb` (bundled, built from source) |
 //! | `postgres` | `postgres://` / `postgresql://` | `sqlx` with its PostgreSQL driver |
 //! | `csv` | `csv://` and `*.csv` paths | `csv` |
 //! | `parquet` | `parquet://` and `*.parquet` paths | `parquet` |
@@ -172,17 +175,17 @@ pub struct DataSource {
 }
 
 impl DataSource {
-    pub async fn new(name: String, from: impl Into<DataSourceInner>) -> anyhow::Result<Self> {
+    pub fn new(name: String, from: impl Into<DataSourceInner>) -> anyhow::Result<Self> {
         let inner = from.into();
         Ok(Self {
             name,
-            tables: inner.get_tables().await?,
+            tables: inner.get_tables()?,
             inner,
         })
     }
 
     /// Create a connection without schema discovery (for query-only use cases like extraction)
-    pub async fn new_without_discovery(
+    pub fn new_without_discovery(
         name: String,
         from: impl Into<DataSourceInner>,
     ) -> anyhow::Result<Self> {
@@ -195,77 +198,114 @@ impl DataSource {
     }
 
     #[cfg(feature = "postgres")]
-    pub async fn new_postgres(name: String, connection_string: String) -> anyhow::Result<Self> {
-        Self::new(name, PgPool::connect(&connection_string).await?).await
+    pub fn new_postgres(name: String, connection_string: String) -> anyhow::Result<Self> {
+        let pool = on_a_runtime("dbcon-connect", |rt| {
+            rt.block_on(PgPool::connect(&connection_string))
+        })??;
+        Self::new(name, pool)
     }
 
+    /// Synchronous: unlike [`DataSource::new_postgres`], `SQLite` discovery is plain blocking
+    /// I/O, so this needs no runtime to drive it.
     #[cfg(feature = "sqlite")]
-    pub async fn new_sqlite(name: String, connection_string: String) -> anyhow::Result<Self> {
-        Self::new(name, SqliteSource::open(&connection_string)?).await
+    pub fn new_sqlite(name: String, connection_string: String) -> anyhow::Result<Self> {
+        let source = SqliteSource::open(&connection_string)?;
+        let tables = discovery::sqlite::discover(&source)?;
+        Ok(Self {
+            name,
+            tables,
+            inner: source.into(),
+        })
     }
 
+    /// Synchronous, for the same reason as [`DataSource::new_sqlite`].
     #[cfg(feature = "csv")]
-    pub async fn new_csv(name: String, path: String) -> anyhow::Result<Self> {
+    pub fn new_csv(name: String, path: String) -> anyhow::Result<Self> {
         let delimiter = detect_csv_delimiter(&path).unwrap_or(b',');
-        Self::new(
+        let source = CSVSource {
+            data: SourceData::Path(path),
+            delimiter,
+            has_headers: true,
+        };
+        let tables = source.get_tables()?;
+        Ok(Self {
             name,
-            CSVSource {
-                data: SourceData::Path(path),
-                delimiter,
-                has_headers: true,
-            },
-        )
-        .await
+            tables,
+            inner: source.into(),
+        })
     }
 
+    /// Synchronous, for the same reason as [`DataSource::new_sqlite`].
     #[cfg(feature = "parquet")]
-    pub async fn new_parquet(name: String, path: String) -> anyhow::Result<Self> {
-        Self::new(
+    pub fn new_parquet(name: String, path: String) -> anyhow::Result<Self> {
+        let source = ParquetSource {
+            data: SourceData::Path(path),
+        };
+        let tables = source.get_tables()?;
+        Ok(Self {
             name,
-            ParquetSource {
-                data: SourceData::Path(path),
-            },
-        )
-        .await
+            tables,
+            inner: source.into(),
+        })
     }
 
     /// A CSV source over bytes already in memory, with its delimiter detected from the contents.
     ///
     /// The counterpart to [`DataSource::new_csv`] for contents with no path: a browser upload, a
     /// `wasm32` build with no filesystem, or a file fetched over the network.
+    ///
+    /// Synchronous, for the same reason as [`DataSource::new_sqlite`].
     #[cfg(feature = "csv")]
-    pub async fn new_csv_bytes(
+    pub fn new_csv_bytes(
         name: String,
         bytes: impl Into<std::sync::Arc<[u8]>>,
     ) -> anyhow::Result<Self> {
-        Self::new(name, CSVSource::from_bytes_autodetect(bytes)).await
+        let source = CSVSource::from_bytes_autodetect(bytes);
+        let tables = source.get_tables()?;
+        Ok(Self {
+            name,
+            tables,
+            inner: source.into(),
+        })
     }
 
     /// A Parquet source over bytes already in memory.
+    ///
+    /// Synchronous, for the same reason as [`DataSource::new_sqlite`].
     #[cfg(feature = "parquet")]
-    pub async fn new_parquet_bytes(
+    pub fn new_parquet_bytes(
         name: String,
         bytes: impl Into<std::sync::Arc<[u8]>>,
     ) -> anyhow::Result<Self> {
-        Self::new(
+        let source = ParquetSource {
+            data: SourceData::Memory(bytes.into()),
+        };
+        let tables = source.get_tables()?;
+        Ok(Self {
             name,
-            ParquetSource {
-                data: SourceData::Memory(bytes.into()),
-            },
-        )
-        .await
+            tables,
+            inner: source.into(),
+        })
     }
 
     /// A workbook held in memory, every sheet a table.
     ///
     /// The route a browser and a `wasm32` build take: bytes with no path to open. `calamine` is
     /// pure Rust, so unlike the DuckDB and PostgreSQL backends this one is available there.
+    ///
+    /// Synchronous, for the same reason as [`DataSource::new_sqlite`].
     #[cfg(feature = "xlsx")]
-    pub async fn new_xlsx_bytes(
+    pub fn new_xlsx_bytes(
         name: String,
         bytes: impl Into<std::sync::Arc<[u8]>>,
     ) -> anyhow::Result<Self> {
-        Self::new(name, XlsxSource::from_bytes(bytes)).await
+        let source = XlsxSource::from_bytes(bytes);
+        let tables = source.get_tables()?;
+        Ok(Self {
+            name,
+            tables,
+            inner: source.into(),
+        })
     }
 
     /// A multi-table source assembled from one file per table -- a directory of CSV or Parquet
@@ -279,39 +319,38 @@ impl DataSource {
         feature = "duckdb",
         feature = "xlsx"
     ))]
-    pub async fn new_table_set(name: String, tables: TableSetSource) -> anyhow::Result<Self> {
-        Self::new(name, tables).await
+    pub fn new_table_set(name: String, tables: TableSetSource) -> anyhow::Result<Self> {
+        Self::new(name, tables)
     }
 
-    pub async fn new_any(name: String, connection_string: String) -> anyhow::Result<Self> {
+    pub fn new_any(name: String, connection_string: String) -> anyhow::Result<Self> {
         Self::new(
             name,
-            Self::inner_from_connection_string(&connection_string).await?,
+            Self::inner_from_connection_string(&connection_string)?,
         )
-        .await
     }
 
     /// Connect without schema discovery; only establishes the connection for querying.
     /// Much faster than `new_any` for databases with many tables.
-    pub async fn new_any_without_discovery(
+    pub fn new_any_without_discovery(
         name: String,
         connection_string: String,
     ) -> anyhow::Result<Self> {
         Self::new_without_discovery(
             name,
-            Self::inner_from_connection_string(&connection_string).await?,
+            Self::inner_from_connection_string(&connection_string)?,
         )
-        .await
     }
 
-    async fn inner_from_connection_string(
-        connection_string: &str,
-    ) -> anyhow::Result<DataSourceInner> {
+    fn inner_from_connection_string(connection_string: &str) -> anyhow::Result<DataSourceInner> {
         #[cfg(feature = "postgres")]
         if connection_string.starts_with("postgres://")
             || connection_string.starts_with("postgresql://")
         {
-            return Ok(PgPool::connect(connection_string).await?.into());
+            return Ok(on_a_runtime("dbcon-connect", |rt| {
+                rt.block_on(PgPool::connect(connection_string))
+            })??
+            .into());
         }
         #[cfg(feature = "sqlite")]
         if connection_string.starts_with("sqlite:") {
@@ -761,6 +800,34 @@ fn block_on<F: std::future::Future>(future: F) -> anyhow::Result<F::Output> {
         .block_on(future))
 }
 
+/// Drive `job` to completion on a scoped thread with its own current-thread Tokio runtime.
+///
+/// Only `sql` reaches here: every other backend connects and discovers with plain blocking I/O,
+/// so the public API is blocking and this drives the one backend that genuinely awaits.
+///
+/// A thread rather than a bare `Runtime::block_on` because that panics when the calling thread is
+/// already inside any runtime's context, and connecting is something an async caller may
+/// reasonably do from a handler. Scoped so `job` can borrow -- discovery runs against `&self`.
+#[cfg(feature = "sql")]
+fn on_a_runtime<T: Send>(
+    thread_name: &str,
+    job: impl FnOnce(&tokio::runtime::Runtime) -> T + Send,
+) -> anyhow::Result<T> {
+    std::thread::scope(|scope| {
+        let handle = std::thread::Builder::new()
+            .name(thread_name.to_string())
+            .spawn_scoped(scope, || {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()?;
+                anyhow::Ok(job(&rt))
+            })?;
+        handle
+            .join()
+            .map_err(|_| anyhow::anyhow!("the {thread_name} thread panicked"))?
+    })
+}
+
 #[cfg(feature = "sql")]
 fn extract_row_column_value<'d, C, R, D: sqlx::Database>(
     row: &'d R,
@@ -895,7 +962,7 @@ where
 }
 
 impl DataSourceInner {
-    pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
+    pub fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
         match self {
             // With no backend feature enabled `DataSourceInner` is uninhabited, so this
             // is the only arm and it is unreachable. With any feature on it is cfg'd out.
@@ -909,7 +976,9 @@ impl DataSourceInner {
             )))]
             _ => match *self {},
             #[cfg(feature = "sql")]
-            DataSourceInner::SQL(sql) => sql.get_tables().await,
+            DataSourceInner::SQL(sql) => {
+                on_a_runtime("dbcon-discover", |rt| rt.block_on(sql.get_tables()))?
+            }
             #[cfg(feature = "sqlite")]
             DataSourceInner::Sqlite(source) => discovery::sqlite::discover(source),
             #[cfg(feature = "duckdb")]
@@ -919,9 +988,9 @@ impl DataSourceInner {
             #[cfg(feature = "xlsx")]
             DataSourceInner::Xlsx(x) => x.get_tables(),
             #[cfg(feature = "csv")]
-            DataSourceInner::CSV(csv) => csv.get_tables().await,
+            DataSourceInner::CSV(csv) => csv.get_tables(),
             #[cfg(feature = "parquet")]
-            DataSourceInner::Parquet(p) => p.get_tables().await,
+            DataSourceInner::Parquet(p) => p.get_tables(),
             #[cfg(any(
                 feature = "sql",
                 feature = "sqlite",
@@ -933,9 +1002,7 @@ impl DataSourceInner {
             DataSourceInner::TableSet(set) => {
                 let mut tables = HashMap::new();
                 for (name, m) in &set.members {
-                    // Boxed because this recurses into `get_tables`, and an `async fn` cannot
-                    // name its own future type.
-                    let mut inner = Box::pin(m.inner.get_tables()).await?;
+                    let mut inner = m.inner.get_tables()?;
                     let Some(mut info) = inner.remove(&m.inner_table) else {
                         anyhow::bail!(
                             "table '{name}' names '{}', which its source does not have",
@@ -1821,7 +1888,10 @@ pub fn parse_delimiter_spec(spec: &str) -> Option<u8> {
 impl CSVSource {
     /// Read the CSV header and build a single-table schema under [`CSV_TABLE_NAME`].
     /// All columns are reported as nullable text since CSV carries no type information.
-    pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
+    ///
+    /// Synchronous: unlike PostgreSQL discovery, reading a CSV header is plain blocking I/O
+    /// with no await point to justify an `async fn`.
+    pub fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
         let mut rdr = self.reader()?;
 
         let headers = rdr.headers()?.clone();
@@ -1903,7 +1973,10 @@ impl ParquetSource {
 
     /// Build a single-table entry under [`PARQUET_TABLE_NAME`], one column per top-level
     /// field with its `NormalizedType` inferred via [`parquet_field_type`].
-    pub async fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
+    ///
+    /// Synchronous: the footer is read with plain blocking I/O, with no await point to
+    /// justify an `async fn`.
+    pub fn get_tables(&self) -> anyhow::Result<HashMap<String, DataTableInfo>> {
         let reader = self.open()?;
         let schema = reader.metadata().file_metadata().schema();
         let columns = schema
@@ -2165,12 +2238,12 @@ mod test {
     /// A table (and column) name containing an embedded `"` must round-trip through
     /// `build_select_query`'s identifier quoting, not just through names with a space.
     #[cfg(feature = "sqlite")]
-    #[tokio::test]
-    async fn table_and_column_names_with_an_embedded_quote_round_trip() -> anyhow::Result<()> {
+    #[test]
+    fn table_and_column_names_with_an_embedded_quote_round_trip() -> anyhow::Result<()> {
         use crate::quote_ident;
         let table = r#"a "b""#;
         let column = r#"n "m""#;
-        let ds = crate::DataSource::new_sqlite("x".into(), "sqlite::memory:".into()).await?;
+        let ds = crate::DataSource::new_sqlite("x".into(), "sqlite::memory:".into())?;
         ds.for_each_row_sql(
             &format!(
                 "CREATE TABLE {} (\"id\" INTEGER, {} TEXT)",
@@ -2221,8 +2294,8 @@ mod test {
     /// Roundtrip: write a tiny Parquet file with known schema + rows, then read
     /// it back through DataSource and check types/values survive the trip.
     #[cfg(feature = "parquet")]
-    #[tokio::test]
-    async fn parquet_roundtrip_reads_typed_values() -> anyhow::Result<()> {
+    #[test]
+    fn parquet_roundtrip_reads_typed_values() -> anyhow::Result<()> {
         use parquet::data_type::{ByteArray, ByteArrayType, Int64Type};
         use parquet::file::properties::WriterProperties;
         use parquet::file::writer::SerializedFileWriter;
@@ -2263,7 +2336,7 @@ mod test {
             writer.close()?;
         }
 
-        let ds = crate::DataSource::new_parquet("rt".into(), path_str.clone()).await?;
+        let ds = crate::DataSource::new_parquet("rt".into(), path_str.clone())?;
 
         let table = ds.tables.get("main").expect("main table present");
         let id_col = table.columns.get("id").expect("id col");
@@ -2289,30 +2362,27 @@ mod test {
     }
 
     #[cfg(feature = "parquet")]
-    #[tokio::test]
-    async fn parquet_dispatch_recognises_suffix_and_scheme() -> anyhow::Result<()> {
+    #[test]
+    fn parquet_dispatch_recognises_suffix_and_scheme() -> anyhow::Result<()> {
         use crate::{DataSource, DataSourceInner};
         // new_any_without_discovery only constructs the source, it does not open the file.
-        let ds =
-            DataSource::new_any_without_discovery("x".into(), "some/path.parquet".into()).await?;
+        let ds = DataSource::new_any_without_discovery("x".into(), "some/path.parquet".into())?;
         assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
 
         let ds =
-            DataSource::new_any_without_discovery("x".into(), "parquet:///tmp/y.parquet".into())
-                .await?;
+            DataSource::new_any_without_discovery("x".into(), "parquet:///tmp/y.parquet".into())?;
         assert!(matches!(&ds.inner, DataSourceInner::Parquet(_)));
         Ok(())
     }
 
     /// A connection string for a backend this build was not compiled with must fail with
     /// an error that names what the build *does* support, not a fixed list.
-    #[tokio::test]
-    async fn unsupported_connection_string_names_the_enabled_backends() {
+    #[test]
+    fn unsupported_connection_string_names_the_enabled_backends() {
         let err = crate::DataSource::new_any_without_discovery(
             "x".into(),
             "mongodb://localhost/x".into(),
         )
-        .await
         .expect_err("mongodb is not a dbcon backend");
         let msg = err.to_string();
         assert!(msg.contains("mongodb://localhost/x"), "{msg}");
